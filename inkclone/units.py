@@ -163,7 +163,39 @@ if __name__ == "__main__":
     words = load_words(sorted({w["source"] for w in d["words"]}))
     W, C, L, rep = build(words, d["segs"])
     letter_h = {c: float(np.median([u["height"] for u in v])) for c, v in L.items() if len(v) >= 3}
-    pickle.dump({"words": W, "chunks": C, "letters": L, "letter_h": letter_h}, open("data/derived/units.pkl", "wb"))
+    # expected vertical extent per letter (top, bottom) relative to the baseline, from clean whole-stroke instances
+    letter_ext = {}
+    for c, v in L.items():
+        good = [u for u in v if u.get("whole")] or v
+        if len(good) >= 3:
+            tops = [min(p[:, 1].min() for p in u["pieces"]) for u in good]; bots = [max(p[:, 1].max() for p in u["pieces"]) for u in good]
+            letter_ext[c] = (float(np.median(tops)), float(np.median(bots)))
+    # geometric plausibility against the label: width ~ sum of typical letter widths, extent ~ union of letter extents
+    wprior = d["prior"]; lw = {c: float(np.median([u["width"] for u in v])) for c, v in L.items() if len(v) >= 3}
+    def plausible(u, tol_w=(0.65, 1.4)):
+        t = u["text"]
+        if not t.isalpha() or len(t) < 1: return True
+        exp_w = sum(lw.get(c, wprior.get(c, 1.0)) for c in t) + 0.15 * (len(t) - 1)
+        r = u["width"] / exp_w
+        if not (tol_w[0] <= r <= tol_w[1]): return False
+        ext = [letter_ext[c] for c in t if c in letter_ext]
+        if ext:
+            top = min(p[:, 1].min() for p in u["pieces"]); bot = max(p[:, 1].max() for p in u["pieces"])
+            exp_top, exp_bot = min(e[0] for e in ext), max(e[1] for e in ext)
+            if exp_top < -1.4 and top > exp_top + 0.7: return False     # should have an ascender/capital but doesn't
+            if exp_top >= -1.4 and top < exp_top - 0.7: return False    # x-height-only text with a tall stroke in it
+            if exp_bot > 0.5 and bot < exp_bot - 0.5: return False      # should descend but doesn't
+            if exp_bot <= 0.5 and bot > exp_bot + 0.6: return False     # descends but shouldn't
+        return True
+    drop = {"chunks": 0, "letters": 0, "words": 0}
+    for name, bank_, tol in (("chunks", C, (0.7, 1.35)), ("letters", L, (0.55, 1.6)), ("words", W, (0.65, 1.4))):
+        for t, insts in list(bank_.items()):
+            kept = [u for u in insts if plausible(u, tol)]; drop[name] += len(insts) - len(kept)
+            if kept: bank_[t] = kept
+            else: del bank_[t]
+    print("implausible units dropped:", drop)
+    pickle.dump({"words": W, "chunks": C, "letters": L, "letter_h": letter_h, "letter_ext": letter_ext}, open("data/derived/units.pkl", "wb"))
+    print("letter extents (top,bottom in xh):", {c: (round(a, 2), round(b, 2)) for c, (a, b) in sorted(letter_ext.items()) if c in "aeghlpt"})
     print(f"words: {sum(map(len, W.values()))} instances / {len(W)} distinct | chunks: {sum(map(len, C.values()))} / {len(C)} | letters kept: {sum(map(len, L.values()))}")
     print("chunks dropped for template mismatch:", rep.pop("_chunks"))
     wr = rep.pop("_words"); print(f"word filters: {wr[0]} -> {wr[1]} (outliers) -> {wr[1]-wr[2]} (template mismatch, cut {wr[3]:.2f})")

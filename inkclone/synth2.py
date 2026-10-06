@@ -8,10 +8,29 @@ import numpy as np
 class Synth2:
     def __init__(self, units="data/derived/units.pkl", bank="data/derived/bank.pkl", seed=None):
         u = pickle.load(open(units, "rb")); self.W, self.C, self.L = u["words"], u["chunks"], u["letters"]
-        self.letter_h = u.get("letter_h", {}); self.slant_target = None; self.pen_target = None
+        self.letter_h = u.get("letter_h", {}); self.letter_ext = u.get("letter_ext", {}); self.slant_target = None; self.pen_target = None
         self.stats = pickle.load(open(bank, "rb"))["stats"]; self.rng = random.Random(seed)
         self.lower = {}
         for t, insts in self.W.items(): self.lower.setdefault(t.lower(), []).extend(insts)
+        pc, jr = self.stats["pair_count"], self.stats["join_rate"]; self.out_of, self.into = {}, {}
+        for p_, n in pc.items():
+            a = self.out_of.setdefault(p_[0], [0, 0]); a[0] += jr[p_] * n; a[1] += n
+            b = self.into.setdefault(p_[1], [0, 0]); b[0] += jr[p_] * n; b[1] += n
+        self.join_enabled = True
+
+    def join_prob(self, a, b):
+        pc, jr = self.stats["pair_count"], self.stats["join_rate"]
+        if pc.get(a + b, 0) >= 4: return jr[a + b]
+        g = self.stats["global_join_rate"]
+        pa = self.out_of[a][0] / self.out_of[a][1] if self.out_of.get(a, [0, 0])[1] >= 10 else g
+        pb = self.into[b][0] / self.into[b][1] if self.into.get(b, [0, 0])[1] >= 10 else g
+        return min(0.9, pa * pb / g) if g else 0.0
+
+    def joined_variant(self, c, prev=False, nxt=False):
+        """a well-scored single-letter instance of c with the requested cut flags, or None."""
+        pool = [u for u in self.L.get(c, []) if (not prev or u.get("joined_prev")) and (not nxt or u.get("joined_next")) and u.get("score") is not None]
+        if len(pool) < 2: return None
+        pool.sort(key=lambda u: u["score"]); return self.rng.choice(pool[:max(2, len(pool) // 3)])
 
     def gap(self, a, b):
         g = self.stats["gap_by_pair"].get(a + b, self.stats["gap_median"]); lo, hi = self.stats["gap_iqr"]
@@ -38,10 +57,15 @@ class Synth2:
         class height, shear to the line's slant, and scale pen width to the document's pen."""
         pieces = [p.copy() for p in pieces]
         t = u.get("text", "")
-        if len(t) == 1 and t.isalpha() and t in self.letter_h and u.get("height"):
-            f = (self.letter_h[t] / u["height"]) ** 0.5; f = min(1.25, max(0.8, f))
-            for p in pieces: p[:, :2] *= f
-            u = dict(u, width=u["width"] * f)
+        ext = [self.letter_ext[c] for c in t if c in self.letter_ext]
+        if ext and t.isalpha():
+            exp_top, exp_bot = min(e[0] for e in ext), max(e[1] for e in ext)
+            top = min(p[:, 1].min() for p in pieces); bot = max(p[:, 1].max() for p in pieces)
+            if bot - top > 1e-3:
+                power = 0.75 if len(t) <= 3 else 0.5  # pull chunks hard, whole words gently
+                f = ((exp_bot - exp_top) / (bot - top)) ** power; f = min(1.4, max(0.7, f))
+                for p in pieces: p[:, :2] *= f
+                u = dict(u, width=u["width"] * f)
         if self.slant_target is not None and u.get("slant") is not None:
             d = max(-12.0, min(12.0, self.slant_target - u["slant"]))
             k = np.tan(np.radians(self.slant_target)) - np.tan(np.radians(self.slant_target - d))
@@ -66,13 +90,34 @@ class Synth2:
         if cands:
             fresh = [c for c in cands if id(c) not in used] or cands
             u = self.pick_by_quality(fresh); used.add(id(u)); pieces, w = self.conform(u["pieces"], u); return pieces, w, src
-        strokes, x, prev = [], 0.0, None
-        for u in self.tile(text):
-            if u is None: x += 0.8; prev = None; continue
-            if prev is not None: x += self.gap(prev[-1], u["text"][0])
+        units = self.tile(text)
+        # decide joins between adjacent single-letter units at the writer's measured pair rates
+        joins = [False] * max(0, len(units) - 1)
+        if self.join_enabled:
+            for k in range(len(units) - 1):
+                a, b = units[k], units[k + 1]
+                if a and b and len(a["text"]) == 1 and len(b["text"]) == 1 and a["text"].isalpha() and b["text"].isalpha():
+                    if self.rng.random() < self.join_prob(a["text"], b["text"]):
+                        a2 = self.joined_variant(a["text"], nxt=True); b2 = self.joined_variant(b["text"], prev=True)
+                        if a2 is not None and b2 is not None: units[k], units[k + 1] = a2, b2; joins[k] = True
+        strokes, x, prev = [], 0.0, None; prev_exit = None; prev_x0 = None
+        for k, u in enumerate(units):
+            if u is None: x += 0.8; prev = None; prev_exit = None; continue
             pieces, w = self.conform(u["pieces"], u)
-            for p in pieces: q = p.copy(); q[:, 0] += x; strokes.append(q)
-            x += w; prev = u["text"]
+            if k > 0 and joins[k - 1] and prev_exit is not None and strokes:
+                ex, ey = prev_exit; nx, ny = pieces[0][0, :2]
+                x0 = prev_x0 + ex - nx; x0 = max(x0, x - 0.35 * w); dy = max(-0.25, min(0.25, ey - ny))
+                for p in pieces: p[:, 0] += x0; p[:, 1] += dy
+                last = strokes[-1]; a_, b_ = last[-1, :2], pieces[0][0, :2]
+                if np.hypot(*(b_ - a_)) > 0.02:
+                    t = np.linspace(0, 1, 3)[1:-1, None]; mid = last[-1] + (pieces[0][0] - last[-1]) * t; last = np.vstack([last, mid])
+                strokes[-1] = np.vstack([last, pieces[0]]); strokes.extend(pieces[1:])
+            else:
+                x0 = x + (self.gap(prev[-1], u["text"][0]) if prev is not None else 0.0)
+                for p in pieces: p[:, 0] += x0
+                strokes.extend(pieces)
+            x = x0 + w; prev = u["text"]; prev_x0 = x0
+            prev_exit = tuple(pieces[0][-1, :2]) if (k < len(units) - 1 and joins[k]) else None
         return strokes, x, "units"
 
     def line(self, text, xh_pt=None):

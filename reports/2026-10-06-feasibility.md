@@ -56,3 +56,10 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - `inkclone/symbols_merge.py` -> `symbols_final.pkl`. `page.py`: composites ⇒ "=>" → "->" ⇔ "<=>", ">" and ")" "]" by mirroring, "0" from whole-stroke "o".
 - Ink-density filter on word instances (drops scribbled ones like the recurring "path").
 - Pages: `reports/page_set05_v4_*.png`, `v5`.
+
+## Coherence + plausibility (~20:00)
+
+- Coherence pass (v6): per-unit slant and pen width stored at build; per line one slant (document slant ± drift) and size mood; document pen 0.49pt; affine-only shear/scale on every unit incl. symbols.
+- Joins between assembled letters at measured pair rates (v7): little visible effect; kept, enabled.
+- Root cause of "missing letters" in assembled words: mislabeled chunks (cutter put a run boundary at the wrong pen-up, so e.g. an "ng" chunk was really just "g"). Fix: geometric plausibility vs label (width ~ sum of letter widths, extents ~ union of letter extents) on chunks, letters, words. Dropped 298/397/173. Zoom before/after: `reports/joins_zoom.png`, per-unit view `reports/unit_debug.png`.
+- Page v8: `reports/page_set05_v8_p1.png`.
