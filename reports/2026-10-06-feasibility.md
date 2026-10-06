@@ -43,3 +43,9 @@ Open question: target documents are math or prose? Math needs its own layout + s
 
 - `inkclone/symbols.py`: pairs handwritten lines to source lines by fuzzy match on OCR letters+digits (the writer skipped one source line, so positional pairing was off by one), then aligns ink clusters to space-separated tokens, and only cuts inside multi-char tokens.
 - Result (`reports/symbols_grid.png`): `[ ] ( ) = + < ≤ ≥ ∞ ∈` and digits mostly clean; 7/8/9 perfect. Commas and the single-instance set symbols (← ∪ ∩ ∅) unreliable. Enough for a first homework page; a second short symbol line or two would fix the rest.
+
+## Layout engine v1 (loop tick, ~19:05)
+
+- `inkclone/source_doc.py` parses the typed PDF: front matter, numbered headers, pseudocode blocks with indentation, prose paragraphs (merged across PDF line breaks), sub/superscripts marked _ ^.
+- `inkclone/page.py` lays out GoodNotes-size pages in the writer's HW conventions and renders PNG + PDF. First full `set05.pdf` rendering: `reports/page_set05_v3_p1.png`, `_p2.png`, `.pdf`.
+- Reads as the writer's hand at a glance; structure correct. Weak layer = symbols/punctuation: `( ) | . , -` instances are dirty or few, `⇒ → ⇔` missing (writer draws ⇒ as "=>"), digits unreliable. Next: harvest single-stroke symbols/punctuation from the 69k unlabeled strokes by shape-matching against the few clean seeds, and compose ⇒/→ from parts.
