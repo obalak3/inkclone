@@ -27,4 +27,4 @@ for _, img in rows: canvas[y+30:y+30+img.shape[0], 10:10+img.shape[1]] = img; y 
 page = pymupdf.open().new_page(width=W * 72 / dpi, height=H * 72 / dpi)
 page.insert_image(page.rect, pixmap=pymupdf.Pixmap(pymupdf.csRGB, W, H, canvas.tobytes(), False)); y = 0
 for label, img in rows: page.insert_text((10 * 72 / dpi, (y + 20) * 72 / dpi), label, fontsize=4.5, color=(0.7, 0, 0)); y += img.shape[0] + 40
-page.get_pixmap(dpi=300).save("reports/compare_line_v7.png"); print("wrote both")
+page.get_pixmap(dpi=300).save("reports/compare_line_v9.png"); print("wrote both")

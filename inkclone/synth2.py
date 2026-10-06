@@ -20,24 +20,30 @@ class Synth2:
         """-> list of units covering text (chunks preferred, longest first with some randomness)."""
         out, i = [], 0
         while i < len(text):
-            opts = [L for L in range(min(6, len(text) - i), 1, -1) if text[i:i+L] in self.C]
+            opts = [L for L in range(min(6, len(text) - i), 1, -1) if self.C.get(text[i:i+L])]
             if opts and self.rng.random() < 0.85:
                 L = opts[0] if len(opts) == 1 or self.rng.random() < 0.7 else self.rng.choice(opts)
-                out.append(self.rng.choice(self.C[text[i:i+L]])); i += L
+                out.append(self.pick_by_quality(self.C[text[i:i+L]])); i += L
             elif text[i] in self.L and self.L[text[i]]:
                 pool = self.L[text[i]]; whole = [u for u in pool if u.get("whole")]
                 if whole and (len(whole) >= 3 or self.rng.random() < 0.8): pool = whole
-                out.append(self.rng.choice(pool)); i += 1
+                out.append(self.pick_by_quality(pool)); i += 1
             else:
                 out.append(None); i += 1
         return out
+
+    def pick_by_quality(self, pool, tau=0.25):
+        """sample an instance, favouring low template-mismatch scores (still random, never argmin)."""
+        sc = np.array([u.get("score") if u.get("score") is not None else 1.0 for u in pool], float)
+        w = np.exp(-(sc - sc.min()) / tau); w /= w.sum()
+        return pool[int(np.random.default_rng(self.rng.getrandbits(32)).choice(len(pool), p=w))]
 
     def word(self, text, used):
         src = "word"
         cands = self.W.get(text) or (self.lower.get(text.lower()) if text.islower() else None)
         if cands:
             fresh = [c for c in cands if id(c) not in used] or cands
-            u = self.rng.choice(fresh); used.add(id(u)); return [p.copy() for p in u["pieces"]], u["width"], src
+            u = self.pick_by_quality(fresh); used.add(id(u)); return [p.copy() for p in u["pieces"]], u["width"], src
         strokes, x, prev = [], 0.0, None
         for u in self.tile(text):
             if u is None: x += 0.8; prev = None; continue

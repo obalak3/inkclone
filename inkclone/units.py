@@ -54,7 +54,7 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
             pieces = [w["strokes"][i][i0:i1].copy() for k in run for i, i0, i1 in seg[k]["pieces"]]
             if len(run) >= 2:
                 px = min(p[:, 0].min() for p in pieces)
-                C[chars].append(unit(normalise(pieces, px, baseline, xh), chars, src))
+                cu = unit(normalise(pieces, px, baseline, xh), chars, src); cu["run0"] = run[0]; C[chars].append(cu)
         for k, ch in enumerate(seg):
             pieces = [w["strokes"][i][i0:i1].copy() for i, i0, i1 in ch["pieces"]]
             px = min(p[:, 0].min() for p in pieces)
@@ -79,7 +79,73 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
         D = np.linalg.norm(X[:, None] - X[None], axis=2); np.fill_diagonal(D, np.inf)
         score = np.sort(D, 1)[:, :5].mean(1); keep = score <= np.quantile(score, 1 - drop_frac)
         L[c] = [i for i, k in zip(insts, keep) if k]; report[c] = (len(insts), int(keep.sum()))
-    report['_words'] = tuple(wrep)
+    # template scores: how well does each letter instance / word instance match its label?
+    from .recut import build_templates, NPTS
+    T = build_templates(L)
+    def inst_desc(pieces):
+        main = max(pieces, key=len)[:, :2]; pts = np.vstack([p[:, :2] for p in pieces])
+        r = resample(main - [main[:, 0].min(), 0], NPTS)
+        return np.r_[r.ravel(), pts[:, 0].max() - pts[:, 0].min(), pts[:, 1].max() - pts[:, 1].min()]
+    wts = np.ones(2 * NPTS + 2); wts[-2:] = 3.0
+    def score(c, pieces):
+        if c not in T: return None
+        d = np.sqrt((((inst_desc(pieces) - T[c]) ** 2) * wts).sum(1) / len(wts)); d.sort()
+        return float(d[1] if len(d) > 1 else d[0])  # skip self-match
+    for c, insts in L.items():
+        for u in insts: u["score"] = score(c, u["pieces"])
+    # word instances: mean letter score over the word's segmentation
+    word_scores = []; chunk_scores = {}
+    for w, seg in zip(words, segs):
+        if not seg: continue
+        fr = word_frame(w["strokes"], seg)
+        if not fr: continue
+        baseline, xh = fr; sc = []
+        for ch in seg:
+            pieces = [w["strokes"][i][i0:i1].copy() for i, i0, i1 in ch["pieces"]]
+            px = min(p[:, 0].min() for p in pieces); s_ = score(ch["char"], normalise(pieces, px, baseline, xh))
+            if s_ is not None: sc.append(s_)
+        word_scores.append((w["text"], (w["source"], w["page"], w["text"]), float(np.mean(sc)) if sc else None))
+        # per-run (chunk) scores for this word
+        per_char = []
+        for ch in seg:
+            pieces = [w["strokes"][i][i0:i1].copy() for i, i0, i1 in ch["pieces"]]
+            px = min(p[:, 0].min() for p in pieces); per_char.append(score(ch["char"], normalise(pieces, px, baseline, xh)))
+        run = [0]
+        for k in range(1, len(seg)):
+            if seg[k]["joined_prev"]: run.append(k)
+            else: run = [k]
+            # store on every prefix end so lookup by (src, start, chars) works
+        runs, run = [], [0]
+        for k in range(1, len(seg)):
+            if seg[k]["joined_prev"]: run.append(k)
+            else: runs.append(run); run = [k]
+        runs.append(run)
+        for run in runs:
+            if len(run) < 2: continue
+            chars = "".join(seg[k]["char"] for k in run); scs = [per_char[k] for k in run if per_char[k] is not None]
+            chunk_scores[((w["source"], w["page"], w["text"]), chars, run[0])] = float(np.mean(scs)) if scs else None
+    by_src = {src: sc for _, src, sc in word_scores}
+    vals = np.array([sc for _, _, sc in word_scores if sc is not None]); cut = float(np.quantile(vals, 0.85))
+    dropped = 0
+    for t, insts in list(W.items()):
+        kept = []
+        for u in insts:
+            u["score"] = by_src.get(u["src"]); 
+            if u["score"] is not None and u["score"] > cut: dropped += 1
+            else: kept.append(u)
+        if kept: W[t] = kept
+        else: del W[t]
+    cdrop = 0
+    for t, insts in list(C.items()):
+        kept = []
+        for u in insts:
+            u["score"] = chunk_scores.get((u["src"], t, u["run0"]))
+            if u["score"] is not None and u["score"] > cut: cdrop += 1
+            else: kept.append(u)
+        if kept: C[t] = kept
+        else: del C[t]
+    report['_chunks'] = cdrop
+    report['_words'] = tuple(wrep) + (dropped, cut)
     return dict(W), dict(C), dict(L), report
 
 
@@ -89,6 +155,7 @@ if __name__ == "__main__":
     W, C, L, rep = build(words, d["segs"])
     pickle.dump({"words": W, "chunks": C, "letters": L}, open("data/derived/units.pkl", "wb"))
     print(f"words: {sum(map(len, W.values()))} instances / {len(W)} distinct | chunks: {sum(map(len, C.values()))} / {len(C)} | letters kept: {sum(map(len, L.values()))}")
-    print("word outlier filter (before->after):", rep.pop("_words"))
+    print("chunks dropped for template mismatch:", rep.pop("_chunks"))
+    wr = rep.pop("_words"); print(f"word filters: {wr[0]} -> {wr[1]} (outliers) -> {wr[1]-wr[2]} (template mismatch, cut {wr[3]:.2f})")
     nw = sum(1 for v in L.values() for i in v if i.get("whole")); print(f"letters that are complete strokes (no cut): {nw}/{sum(map(len, L.values()))}")
     print("capitals kept:", " ".join(f"{c}:{b}" for c, (a, b) in sorted(rep.items()) if c.isupper()))

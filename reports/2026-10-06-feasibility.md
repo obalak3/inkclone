@@ -36,3 +36,5 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - Template-guided re-cut (`inkclone/recut.py`, vectorised, 28s for the corpus): 953/1493 words changed cuts. e/t/s grids visibly cleaner (`units_letter_grid_aets_v2.png`), "a" less so.
 - Letters that are complete pen strokes (unjoined both sides) are clean by construction: 2,247 of 3,598. Synth2 now prefers them.
 - `compare_line_v7.png`: whole-word lines good except occasional mislabeled word instances (an OCR "the" that is really "that"). Assembled words still inconsistent word to word.
+- Template scoring of every unit (letters: 2nd-nearest template distance; words and chunks: mean letter score). Drop worst 15% of word instances (1355 -> 1166) and 219 chunks. Quality-weighted sampling in Synth2 (softmax over score, never argmin, so variation stays).
+- `compare_line_v9.png`: "Shortest Paths with Few Steps", "Bellman Ford, stop when a round", "No change round means fixed point, so stopping early is safe" all readable and in the writer's hand. Still weak: "changes", "nothing" (chunk 'ng' from a poor source).
