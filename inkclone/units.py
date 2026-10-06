@@ -62,6 +62,14 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
             u["whole"] = not ch["joined_prev"] and not ch["joined_next"]  # complete pen stroke(s), no guessed cut
             lo, hi = HEIGHT_RANGE[letter_class(ch["char"])]
             if lo <= u["height"] <= hi and 0.15 <= u["width"] <= 4.5: L[ch["char"]].append(u)
+    # ink-density filter: scribbled or over-written word instances carry far more ink per letter than normal
+    dens = {}
+    for t, insts in W.items():
+        for u in insts:
+            L_ = sum(np.linalg.norm(np.diff(p[:, :2], axis=0), axis=1).sum() for p in u["pieces"]); dens[id(u)] = L_ / max(1, len(t))
+    med = float(np.median(list(dens.values()))) if dens else 1.0
+    for t, insts in list(W.items()):
+        W[t] = [u for u in insts if dens[id(u)] <= 1.7 * med]
     # whole-word outlier filter: for words seen 3+ times, drop instances whose width or
     # stroke count is far from that word's median (stray strokes, swallowed neighbours)
     wrep = [0, 0]

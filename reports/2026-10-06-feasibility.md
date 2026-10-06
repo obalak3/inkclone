@@ -49,3 +49,10 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - `inkclone/source_doc.py` parses the typed PDF: front matter, numbered headers, pseudocode blocks with indentation, prose paragraphs (merged across PDF line breaks), sub/superscripts marked _ ^.
 - `inkclone/page.py` lays out GoodNotes-size pages in the writer's HW conventions and renders PNG + PDF. First full `set05.pdf` rendering: `reports/page_set05_v3_p1.png`, `_p2.png`, `.pdf`.
 - Reads as the writer's hand at a glance; structure correct. Weak layer = symbols/punctuation: `( ) | . , -` instances are dirty or few, `⇒ → ⇔` missing (writer draws ⇒ as "=>"), digits unreliable. Next: harvest single-stroke symbols/punctuation from the 69k unlabeled strokes by shape-matching against the few clean seeds, and compose ⇒/→ from parts.
+
+## Symbol harvest from unlabeled strokes (~19:30)
+
+- `inkclone/harvest_unlabeled.py`: shape-match 69k unlabeled strokes against clean seeds (single strokes and consecutive pairs), letters as negative classes, seed cleaning, all-class margin. Clean: `( [ ] , - 1 2 7 8 = ≤` (30-150 each). Poisoned by a bad lone seed and dropped: `/ 5`, tail of `≥`. Grid: `reports/harvested_grid.png`.
+- `inkclone/symbols_merge.py` -> `symbols_final.pkl`. `page.py`: composites ⇒ "=>" → "->" ⇔ "<=>", ">" and ")" "]" by mirroring, "0" from whole-stroke "o".
+- Ink-density filter on word instances (drops scribbled ones like the recurring "path").
+- Pages: `reports/page_set05_v4_*.png`, `v5`.

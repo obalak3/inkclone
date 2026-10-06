@@ -17,21 +17,45 @@ MARGIN_L, MARGIN_R, MARGIN_T, MARGIN_B = 18.0, 14.0, 16.0, 20.0
 class Page:
     def __init__(self, seed=0, body_xh=4.2, header_xh=6.4):
         self.s = Synth2(seed=seed); self.rng = random.Random(seed)
-        self.sym = pickle.load(open("data/derived/symbols.pkl", "rb"))
+        self.sym = pickle.load(open("data/derived/symbols_final.pkl", "rb"))
         self.body_xh, self.header_xh = body_xh, header_xh
         self.missing = collections.Counter()
 
     # ---- glyph sources -------------------------------------------------------------
     PUNCT_FROM_PROSE = set(";:'?!")  # commas/periods/hyphens from prose cuts are too dirty; use the sheet bank
 
+    COMPOSITE = {"⇒": "=>", "→": "->", "⇔": "<=>", "↔": "<->", "≠": "=/"}
+
+    def mirror(self, u):
+        """horizontal mirror of a glyph instance (for '>' from '<')."""
+        pieces = [p.copy() for p in u["pieces"]]
+        for p in pieces: p[:, 0] = u["width"] - p[:, 0]
+        return dict(u, pieces=pieces)
+
     def symbol(self, c):
-        # punctuation: the prose-derived letter bank has many more, with quality scores
+        if c == ">" and not self.sym.get(">") and self.sym.get("<"): return self.mirror(self.rng.choice(self.sym["<"]))
+        if c == ")" and len(self.sym.get(")", [])) < 5 and len(self.sym.get("(", [])) >= 5: return self.mirror(self.rng.choice(self.sym["("][:30]))
+        if c == "]" and len(self.sym.get("]", [])) < 5 and len(self.sym.get("[", [])) >= 5: return self.mirror(self.rng.choice(self.sym["["][:20]))
+        if c == "0" and not self.sym.get("0") and self.s.L.get("o"): return self.s.pick_by_quality([u for u in self.s.L["o"] if u.get("whole")] or self.s.L["o"])
         if c in self.PUNCT_FROM_PROSE and self.s.L.get(c):
             return self.s.pick_by_quality(self.s.L[c])
         pool = self.sym.get(c)
         if not pool: self.missing[c] += 1; return None
-        single = [u for u in pool if u.get("single")]
-        return self.rng.choice(single if len(single) >= 2 else pool)
+        n_good = max(2, len(pool) // 2)  # lists are best-first
+        return self.rng.choice(pool[:n_good]) if len(pool) >= 4 else self.rng.choice(pool)
+
+    def composite(self, c):
+        """Build ⇒ → ⇔ from parts laid tightly left to right. -> (strokes, width) or None."""
+        parts = self.COMPOSITE.get(c)
+        if not parts: return None
+        strokes, x = [], 0.0
+        for k, pc in enumerate(parts):
+            u = self.symbol(pc)
+            if u is None: return None
+            dx = -0.35 if k > 0 else 0.0  # overlap the arrow head onto the shaft
+            for p in u["pieces"]: q = p.copy(); q[:, 0] += x + dx; strokes.append(q)
+            x += u["width"] + dx
+        return strokes, x
 
     def token(self, tok, used):
         """-> (strokes in xh units, width in xh). Handles letters, digits, symbols, _ and ^."""
@@ -47,9 +71,13 @@ class Page:
                 while j < len(tok) and tok[j].isalpha(): j += 1
                 run = tok[i:j]; st, w, _ = self.s.word(run, used); i = j
             else:
-                u = self.symbol(c); i += 1
-                if u is None: x += 0.8 * scale; continue
-                st, w = [p.copy() for p in u["pieces"]], u["width"]
+                i += 1
+                comp = self.composite(c) if c in self.COMPOSITE else None
+                if comp: st, w = comp
+                else:
+                    u = self.symbol(c)
+                    if u is None: x += 0.8 * scale; continue
+                    st, w = [p.copy() for p in u["pieces"]], u["width"]
             if strokes: x += 0.22 * scale
             for p in st:
                 q = p.copy(); q[:, :2] *= scale; q[:, 0] += x; q[:, 1] += dy; strokes.append(q)
