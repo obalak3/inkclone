@@ -22,7 +22,7 @@ class Page:
         self.missing = collections.Counter()
 
     # ---- glyph sources -------------------------------------------------------------
-    PUNCT_FROM_PROSE = set(",.;:'-?!")
+    PUNCT_FROM_PROSE = set(";:'?!")  # commas/periods/hyphens from prose cuts are too dirty; use the sheet bank
 
     def symbol(self, c):
         # punctuation: the prose-derived letter bank has many more, with quality scores

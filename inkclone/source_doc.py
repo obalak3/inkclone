@@ -45,7 +45,7 @@ def parse(path):
                 if prev_x1 is not None and sp["bbox"][0] - prev_x1 > 0.18 * size and not t.startswith(("_", "^")): txt += " "
                 txt += t; prev_x1 = sp["bbox"][2]
             txt = txt.replace("̸=", "≠").replace("=⇒", "⇒").replace("⇐⇒", "⇔").replace("· · ·", "...").replace(". . .", "...").replace("−", "-")
-            txt = re.sub(r"\|\s*([A-Za-z])\s*\|", r"||", txt)
+            txt = re.sub(r"\|\s*([A-Za-z])\s*\|", lambda m: "|" + m.group(1) + "|", txt)
             bold = "CMBX" in main["font"] or "Bold" in main["font"]
             merged.append({"x": sps[0]["bbox"][0], "y": g["y"], "size": size, "bold": bold, "text": re.sub(r"\s+", " ", txt).strip(), "font": main["font"]})
         body_x = min(r["x"] for r in merged if not r["bold"]) if merged else 0
@@ -71,9 +71,12 @@ def parse(path):
 
 
 def merge_paragraphs(lines):
-    """Join consecutive prose lines into paragraphs; a bold lead word (Why. / Time.) starts a new one."""
-    out = []
+    """Join consecutive prose lines into paragraphs; a bold lead word (Why. / Time.) starts a new one.
+    Anything before the first header is front matter (title, author, due date) and is kept as separate lines."""
+    out = []; seen_header = False
     for ln in lines:
+        if ln["kind"] == "header": seen_header = True
+        if not seen_header and ln["kind"] == "prose": out.append(dict(ln, kind="meta")); continue
         if ln["kind"] == "prose" and out and out[-1]["kind"] == "prose" and not ln.get("bold_lead"):
             out[-1]["text"] = (out[-1]["text"] + " " + ln["text"]).strip()
         else:
