@@ -60,7 +60,16 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
             px = min(p[:, 0].min() for p in pieces)
             u = unit(normalise(pieces, px, baseline, xh), ch["char"], src)
             lo, hi = HEIGHT_RANGE[letter_class(ch["char"])]
-            if lo <= u["height"] <= hi and 0.15 <= u["width"] <= 3.5: L[ch["char"]].append(u)
+            if lo <= u["height"] <= hi and 0.15 <= u["width"] <= 4.5: L[ch["char"]].append(u)
+    # whole-word outlier filter: for words seen 3+ times, drop instances whose width or
+    # stroke count is far from that word's median (stray strokes, swallowed neighbours)
+    wrep = [0, 0]
+    for t, insts in list(W.items()):
+        wrep[0] += len(insts)
+        if len(insts) >= 3:
+            wd = np.median([i["width"] for i in insts]); ns = np.median([len(i["pieces"]) for i in insts])
+            W[t] = [i for i in insts if abs(i["width"] - wd) <= 0.35 * wd and abs(len(i["pieces"]) - ns) <= 2]
+        wrep[1] += len(W[t])
     # shape filter on letters
     report = {}
     for c, insts in L.items():
@@ -69,6 +78,7 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
         D = np.linalg.norm(X[:, None] - X[None], axis=2); np.fill_diagonal(D, np.inf)
         score = np.sort(D, 1)[:, :5].mean(1); keep = score <= np.quantile(score, 1 - drop_frac)
         L[c] = [i for i, k in zip(insts, keep) if k]; report[c] = (len(insts), int(keep.sum()))
+    report['_words'] = tuple(wrep)
     return dict(W), dict(C), dict(L), report
 
 
@@ -78,4 +88,5 @@ if __name__ == "__main__":
     W, C, L, rep = build(words, d["segs"])
     pickle.dump({"words": W, "chunks": C, "letters": L}, open("data/derived/units.pkl", "wb"))
     print(f"words: {sum(map(len, W.values()))} instances / {len(W)} distinct | chunks: {sum(map(len, C.values()))} / {len(C)} | letters kept: {sum(map(len, L.values()))}")
-    print("letter filter (before->after):", " ".join(f"{c}:{a}->{b}" for c, (a, b) in sorted(rep.items()) if c.islower()))
+    print("word outlier filter (before->after):", rep.pop("_words"))
+    print("capitals kept:", " ".join(f"{c}:{b}" for c, (a, b) in sorted(rep.items()) if c.isupper()))

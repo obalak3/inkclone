@@ -14,7 +14,7 @@ from .segment import load_words
 
 XHEIGHT_LETTERS = set("acemnorsuvwxz"); DESCENDERS = set("gjpqy"); ASCENDERS = set("bdfhklt")
 # plausible normalised ink height per letter class (in x-heights): rejects bad frames/cuts
-HEIGHT_RANGE = {"x": (0.55, 1.8), "asc": (1.1, 3.2), "desc": (1.1, 3.2), "cap": (1.1, 3.4), "other": (0.3, 3.4)}
+HEIGHT_RANGE = {"x": (0.55, 1.8), "asc": (1.1, 3.2), "desc": (1.1, 3.2), "cap": (1.8, 5.5), "other": (0.3, 5.5)}
 
 
 def letter_class(c):

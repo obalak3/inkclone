@@ -13,13 +13,13 @@ to the letter whose x-span they sit over.
 import json
 import numpy as np
 
-NARROW = set("iljtfr.,;:'!|()[]1"); WIDE = set("mwMW")
+NARROW = set("iljtfr.,;:'!|()[]1IJ"); WIDE = set("mwMW")
 
 
 def default_width_prior():
     pri = {}
     for c in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789":
-        pri[c] = 0.55 if c in NARROW else 1.6 if c in WIDE else 1.0
+        pri[c] = 0.55 if c in NARROW else 1.6 if c in WIDE else 1.8 if c.isupper() else 1.0
     return pri
 
 
@@ -72,16 +72,22 @@ def segment_word(strokes, text, prior, unit=None, lam_join=0.6, lam_width=1.0):
         seg = seq[a:b]; w = seg[:, 0].max() - seg[:, 0].min() if len(seg) else 0.0
         return lam_width * ((w - exp_w[k]) / (0.5 * exp_w[k] + 0.3 * unit)) ** 2
     # DP over (char k, cut index j): best[k][j] = cost of chars 0..k ending at cands[j]
-    C = len(cands); INF = 1e18
+    C = len(cands); INF = 1e18; cand_arr = np.array(cands)
+    jc = np.array([join_cost(c) for c in cands])
+    def wcost_vec(ends, k):
+        """width cost of segments [cands[jp], ends) for all jp with cands[jp] < ends."""
+        # running max/min of x going backwards from `ends`
+        xs = seq[:ends, 0]; rmax = np.maximum.accumulate(xs[::-1])[::-1]; rmin = np.minimum.accumulate(xs[::-1])[::-1]
+        a = cand_arr[cand_arr < ends]; w = rmax[a] - rmin[a]
+        return lam_width * ((w - exp_w[k]) / (0.5 * exp_w[k] + 0.3 * unit)) ** 2
     best = np.full((K, C), INF); back = np.full((K, C), -1, int)
     for j, c in enumerate(cands):
-        best[0, j] = width_cost(0, c, 0) + join_cost(c)
+        best[0, j] = width_cost(0, c, 0) + jc[j]
     for k in range(1, K - 1):
         for j, c in enumerate(cands):
-            for jp in range(j):
-                v = best[k-1, jp] + width_cost(cands[jp], c, k) + join_cost(c)
-                if v < best[k, j]: best[k, j] = v; back[k, j] = jp
-    # last char runs from cut to end
+            if j == 0: continue
+            v = best[k-1, :j] + wcost_vec(c, k)[:j] + jc[j]
+            jp = int(np.argmin(v)); best[k, j] = v[jp]; back[k, j] = jp
     finals = [best[K-2, j] + width_cost(cands[j], N, K-1) for j in range(C)]
     j = int(np.argmin(finals)); cuts = [cands[j]]
     for k in range(K - 2, 0, -1):
