@@ -23,11 +23,37 @@ def load(prefix):
     return pages
 
 
+def is_word(text):
+    t = text.strip(".,;:!?()\"'")
+    return t.isalpha() and t.lower() in DICT and (len(t) >= 3 or t.lower() in COMMON)
+
+
 def word_ok(text, n_strokes):
     t = text.strip(".,;:!?()\"'")
-    if not (t.isalpha() and len(t) >= 2 and t.lower() in DICT):
-        return False
-    return 0.3 * len(t) <= n_strokes <= 3 * len(t) + 2
+    return is_word(t) and 0.3 * len(t) <= n_strokes <= 2 * len(t) + 1
+
+
+def line_trust(words, min_tokens=2, min_rate=0.6):
+    """Group OCR boxes into text lines by vertical overlap. A line is trusted when most
+    of its tokens are dictionary words (equation lines OCR into garbage tokens).
+    Returns a bool per word."""
+    trusted = [False] * len(words)
+    order = sorted(range(len(words)), key=lambda i: (words[i]["bbox"][1], words[i]["bbox"][0]))
+    lines = []
+    for i in order:
+        y0, y1 = words[i]["bbox"][1], words[i]["bbox"][3]
+        for ln in lines:
+            ly0, ly1 = ln["y"]
+            if min(y1, ly1) - max(y0, ly0) > 0.5 * min(y1 - y0, ly1 - ly0):
+                ln["ids"].append(i); ln["y"] = (min(y0, ly0), max(y1, ly1)); break
+        else:
+            lines.append({"ids": [i], "y": (y0, y1)})
+    for ln in lines:
+        ids = ln["ids"]
+        rate = sum(is_word(words[i]["text"]) for i in ids) / len(ids)
+        if len(ids) >= min_tokens and rate >= min_rate:
+            for i in ids: trusted[i] = True
+    return trusted
 
 
 def assign_strokes(strokes, words, pad=1.0):
@@ -46,10 +72,11 @@ def assign_strokes(strokes, words, pad=1.0):
 
 def align_page(page, page_index):
     owner = assign_strokes(page["strokes"], page["words"])
+    trusted = line_trust(page["words"])
     samples, unlabeled = [], []
     for wi, w in enumerate(page["words"]):
         idx = np.flatnonzero(owner == wi)
-        if not len(idx): continue
+        if not len(idx) or not trusted[wi]: continue
         strokes = [page["strokes"][i] for i in idx]
         if word_ok(w["text"], len(strokes)):
             samples.append({"text": w["text"].strip(".,;:!?()\"'"), "page": page_index, "bbox": w["bbox"],
