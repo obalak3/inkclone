@@ -51,7 +51,12 @@ def loop_centerline(L):
     k = np.linalg.norm(A - B, axis=2).sum(1).argmin()
     A, B = A[k], B[k]
     mid = (A + B) / 2
-    w = np.linalg.norm(A - B, axis=1)
+    # opposite-point distances overestimate width near the caps and on short loops;
+    # ribbon area / half-perimeter is the robust ink width for the whole piece
+    x, y = L[:, 0], L[:, 1]
+    area = 0.5 * abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
+    per = np.linalg.norm(np.diff(np.vstack([L, L[:1]]), axis=0), axis=1).sum()
+    w = np.full(len(mid), 2 * area / per if per > 0 else 0.0)
     return np.column_stack([mid, w])
 
 
