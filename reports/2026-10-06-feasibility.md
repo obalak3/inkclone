@@ -33,3 +33,6 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - Capital filter bug: writer's capitals are 3.5-4.5 x-heights; range widened to 1.8-5.5. Capital width prior raised to 1.8.
 - Whole-word outlier filter (width / stroke count vs same-word median): 1,489 -> 1,321 word instances.
 - `reports/compare_line_v5.png`: whole-word lines good; assembled words improved (B, F present) but still rough. Letter cuts around capitals are the dirtiest. Next: template-guided re-cutting.
+- Template-guided re-cut (`inkclone/recut.py`, vectorised, 28s for the corpus): 953/1493 words changed cuts. e/t/s grids visibly cleaner (`units_letter_grid_aets_v2.png`), "a" less so.
+- Letters that are complete pen strokes (unjoined both sides) are clean by construction: 2,247 of 3,598. Synth2 now prefers them.
+- `compare_line_v7.png`: whole-word lines good except occasional mislabeled word instances (an OCR "the" that is really "that"). Assembled words still inconsistent word to word.

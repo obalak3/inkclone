@@ -25,7 +25,9 @@ class Synth2:
                 L = opts[0] if len(opts) == 1 or self.rng.random() < 0.7 else self.rng.choice(opts)
                 out.append(self.rng.choice(self.C[text[i:i+L]])); i += L
             elif text[i] in self.L and self.L[text[i]]:
-                out.append(self.rng.choice(self.L[text[i]])); i += 1
+                pool = self.L[text[i]]; whole = [u for u in pool if u.get("whole")]
+                if whole and (len(whole) >= 3 or self.rng.random() < 0.8): pool = whole
+                out.append(self.rng.choice(pool)); i += 1
             else:
                 out.append(None); i += 1
         return out

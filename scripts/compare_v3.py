@@ -8,7 +8,7 @@ for r, c in enumerate(letters):
     for k, inst in enumerate(L[c][:per]):
         img = render_strokes([p * [xh, xh, 1.0] + [6, 2.2 * xh, 0] for p in inst["pieces"]], (cell * 72 / 110,) * 2, dpi=110)
         h, w = min(img.shape[0], cell), min(img.shape[1], cell); canvas[r*cell:r*cell+h, k*cell:k*cell+w] = img[:h, :w]
-pymupdf.Pixmap(pymupdf.csRGB, canvas.shape[1], canvas.shape[0], canvas.tobytes(), False).save("reports/units_letter_grid_aets.png")
+pymupdf.Pixmap(pymupdf.csRGB, canvas.shape[1], canvas.shape[0], canvas.tobytes(), False).save("reports/units_letter_grid_aets_v2.png")
 
 dpi = 600
 pg = pymupdf.open("data/raw/CS 3511 HW5.pdf")[0]
@@ -27,4 +27,4 @@ for _, img in rows: canvas[y+30:y+30+img.shape[0], 10:10+img.shape[1]] = img; y 
 page = pymupdf.open().new_page(width=W * 72 / dpi, height=H * 72 / dpi)
 page.insert_image(page.rect, pixmap=pymupdf.Pixmap(pymupdf.csRGB, W, H, canvas.tobytes(), False)); y = 0
 for label, img in rows: page.insert_text((10 * 72 / dpi, (y + 20) * 72 / dpi), label, fontsize=4.5, color=(0.7, 0, 0)); y += img.shape[0] + 40
-page.get_pixmap(dpi=300).save("reports/compare_line_v5.png"); print("wrote both")
+page.get_pixmap(dpi=300).save("reports/compare_line_v7.png"); print("wrote both")

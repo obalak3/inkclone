@@ -59,6 +59,7 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
             pieces = [w["strokes"][i][i0:i1].copy() for i, i0, i1 in ch["pieces"]]
             px = min(p[:, 0].min() for p in pieces)
             u = unit(normalise(pieces, px, baseline, xh), ch["char"], src)
+            u["whole"] = not ch["joined_prev"] and not ch["joined_next"]  # complete pen stroke(s), no guessed cut
             lo, hi = HEIGHT_RANGE[letter_class(ch["char"])]
             if lo <= u["height"] <= hi and 0.15 <= u["width"] <= 4.5: L[ch["char"]].append(u)
     # whole-word outlier filter: for words seen 3+ times, drop instances whose width or
@@ -89,4 +90,5 @@ if __name__ == "__main__":
     pickle.dump({"words": W, "chunks": C, "letters": L}, open("data/derived/units.pkl", "wb"))
     print(f"words: {sum(map(len, W.values()))} instances / {len(W)} distinct | chunks: {sum(map(len, C.values()))} / {len(C)} | letters kept: {sum(map(len, L.values()))}")
     print("word outlier filter (before->after):", rep.pop("_words"))
+    nw = sum(1 for v in L.values() for i in v if i.get("whole")); print(f"letters that are complete strokes (no cut): {nw}/{sum(map(len, L.values()))}")
     print("capitals kept:", " ".join(f"{c}:{b}" for c, (a, b) in sorted(rep.items()) if c.isupper()))
