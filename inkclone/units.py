@@ -8,7 +8,7 @@ space are dropped (these are the mis-cut instances carrying neighbour fragments)
 import pickle, collections
 import numpy as np
 from .segment import load_words
-from .bank import word_frame, letter_class, HEIGHT_RANGE
+from .bank import word_frame, letter_class, HEIGHT_RANGE, slant_deg
 
 
 def resample(pts, n=24):
@@ -29,7 +29,8 @@ def normalise(pieces, x0, baseline, xh):
 
 def unit(pieces, text, src):
     allp = np.vstack([p[:, :2] for p in pieces])
-    return {"text": text, "pieces": pieces, "width": allp[:, 0].max(), "height": allp[:, 1].max() - allp[:, 1].min(), "src": src}
+    return {"text": text, "pieces": pieces, "width": allp[:, 0].max(), "height": allp[:, 1].max() - allp[:, 1].min(), "src": src,
+            "slant": slant_deg(allp), "pen": float(np.median(np.concatenate([p[:, 2] for p in pieces])))}
 
 
 def build(words, segs, drop_frac=0.3, min_for_filter=20):
@@ -161,7 +162,8 @@ if __name__ == "__main__":
     d = pickle.load(open("data/derived/segments.pkl", "rb"))
     words = load_words(sorted({w["source"] for w in d["words"]}))
     W, C, L, rep = build(words, d["segs"])
-    pickle.dump({"words": W, "chunks": C, "letters": L}, open("data/derived/units.pkl", "wb"))
+    letter_h = {c: float(np.median([u["height"] for u in v])) for c, v in L.items() if len(v) >= 3}
+    pickle.dump({"words": W, "chunks": C, "letters": L, "letter_h": letter_h}, open("data/derived/units.pkl", "wb"))
     print(f"words: {sum(map(len, W.values()))} instances / {len(W)} distinct | chunks: {sum(map(len, C.values()))} / {len(C)} | letters kept: {sum(map(len, L.values()))}")
     print("chunks dropped for template mismatch:", rep.pop("_chunks"))
     wr = rep.pop("_words"); print(f"word filters: {wr[0]} -> {wr[1]} (outliers) -> {wr[1]-wr[2]} (template mismatch, cut {wr[3]:.2f})")

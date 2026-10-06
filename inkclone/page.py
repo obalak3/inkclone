@@ -20,6 +20,8 @@ class Page:
         self.sym = pickle.load(open("data/derived/symbols_final.pkl", "rb"))
         self.body_xh, self.header_xh = body_xh, header_xh
         self.missing = collections.Counter()
+        self.s.pen_target = 0.49  # the writer's measured pen width in pt
+        self.doc_slant = max(-9.0, min(0.0, self.rng.gauss(self.s.stats.get("slant_deg_median", -4.4), 1.5)))
 
     # ---- glyph sources -------------------------------------------------------------
     PUNCT_FROM_PROSE = set(";:'?!")  # commas/periods/hyphens from prose cuts are too dirty; use the sheet bank
@@ -77,7 +79,7 @@ class Page:
                 else:
                     u = self.symbol(c)
                     if u is None: x += 0.8 * scale; continue
-                    st, w = [p.copy() for p in u["pieces"]], u["width"]
+                    st, w = self.s.conform(u["pieces"], u)
             if strokes: x += 0.22 * scale
             for p in st:
                 q = p.copy(); q[:, :2] *= scale; q[:, 0] += x; q[:, 1] += dy; strokes.append(q)
@@ -89,6 +91,8 @@ class Page:
     def line_strokes(self, text, xh, x0, baseline, used, max_w=None):
         """Lay tokens along a baseline. Returns (strokes in pt, leftover tokens if wrapped)."""
         out, x = [], x0; toks = text.split(); wg = self.s.stats.get("word_gap_xh_median", 2.0)
+        self.s.slant_target = max(-12.0, min(2.0, self.doc_slant + self.rng.gauss(0, 1.8)))  # one slant per line, drifting around the document's
+        xh = xh * self.rng.uniform(0.95, 1.05)  # size mood per line
         for n, tok in enumerate(toks):
             st, w = self.token(tok, used); jit = self.rng.uniform(0.95, 1.05)
             if max_w and n > 0 and x + w * xh * jit > x0 + max_w: return out, toks[n:]
