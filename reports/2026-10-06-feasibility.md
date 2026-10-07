@@ -100,3 +100,13 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - LaTeX fraction bars in these PDFs are stroked lines (m/l/S), not filled rects. `fold_fractions` now takes any thin horizontal drawing as a bar and folds the spans sitting inside its x-extent just above/below into `frac{num}{den}`; `page.fraction` renders them stacked with a bar borrowed from '='. Containment rule needed (first attempt swallowed whole prose lines).
 - Rare capitals (<3 instances) default to the measured capital extent so Q/X/Y are not oversized.
 - Remaining parser quirks: superscripts inside fractions lose the ^ marker; an isolated operator can be mistaken for a numerator.
+
+## Clean-room rebuild (2026-10-07 06:12)
+
+- `data/derived` wiped, `cli build` from raw exports + typed sources: 1,620 labeled words, 1,031 word instances / 450 distinct, 721 chunks, 3,458 letters, every capital present; both test documents rendered from scratch. Pipeline is reproducible. Build order bug (recut before its templates existed) fixed with a two-pass bootstrap.
+- Harvest union starts empty on a clean tree, so the hyphen class is thin again; the '=' stroke fallback covers it.
+
+## Where to go next (needs the writer)
+1. Pick-the-fake score and what gives the fakes away (`reports/pick_the_fake.png`, key in `pick_the_fake_KEY.txt`).
+2. Vector PDF import into GoodNotes (`out/set05_handwritten.vector.pdf`).
+3. Data: prose/heading-rich exports (whole-word coverage, header register), one line of spaced digits (4, 5, 6).
