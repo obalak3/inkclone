@@ -26,9 +26,15 @@ def variant(inst, rng, strength=1.0):
         x, y = p[:, 0] * sx, p[:, 1] * sy
         x = x + y * shear
         p[:, 0], p[:, 1] = c * x - sn * y, sn * x + c * y
-    # smooth bend along each stroke (two low harmonics), amplitude ~5% of the glyph height
+    # smooth bend along each stroke (two low harmonics), amplitude ~5% of the glyph height.
+    # Near-straight strokes (bars, parentheses, 1, l) are left alone: bending them changes the glyph.
     for p in pieces:
         if len(p) < 6: continue
+        chord = p[-1, :2] - p[0, :2]; L_ = np.linalg.norm(chord)
+        if L_ > 1e-6:
+            u_ = chord / L_; rel = p[:, :2] - p[0, :2]
+            dev = np.abs(u_[0] * rel[:, 1] - u_[1] * rel[:, 0]).max()  # perpendicular distance from the chord
+            if dev < 0.18 * L_: continue
         t = _arc_t(p); amp = 0.05 * h * s
         for k in (1, 2):
             ph_x, ph_y = rng.uniform(0, 2 * np.pi), rng.uniform(0, 2 * np.pi)
@@ -56,7 +62,7 @@ def variant(inst, rng, strength=1.0):
     return out
 
 
-def augment_bank(bank, rng, per_instance=10, target_min=40, cap=200):
+def augment_bank(bank, rng, per_instance=10, target_min=40, cap=200, strength=1.0):
     """Add variants so every glyph has at least `target_min` instances (up to `cap`).
     Glyphs with many real instances get a couple of variants each; rare ones get `per_instance`."""
     out = {}
@@ -68,7 +74,7 @@ def augment_bank(bank, rng, per_instance=10, target_min=40, cap=200):
         for u in real:
             for _ in range(n_var):
                 if len(new) >= cap: break
-                new.append(variant(u, rng))
+                new.append(variant(u, rng, strength))
         out[c] = new
     return out
 

@@ -19,6 +19,6 @@ if __name__ == "__main__":
         out.pop(bad, None)
     from inkclone.augment import augment_bank
     import random
-    out = augment_bank(out, random.Random(11), per_instance=10, target_min=30, cap=150)
+    out = augment_bank(out, random.Random(11), per_instance=10, target_min=30, cap=150, strength=0.6)
     pickle.dump(out, open("data/derived/symbols_final.pkl", "wb"))
     print("final symbol bank:", {c: len(v) for c, v in sorted(out.items()) if v})
