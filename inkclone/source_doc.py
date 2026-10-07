@@ -12,6 +12,29 @@ import pymupdf
 GREEK = {"∞": "∞", "≤": "≤", "≥": "≥", "∈": "∈", "⇒": "⇒", "→": "→", "≠": "≠", "∅": "∅"}
 
 
+def fold_fractions(page, spans):
+    """LaTeX draws a fraction as a thin filled rule with numerator spans above and denominator spans
+    below. Fold each such group into one synthetic span 'frac{num}{den}' sitting on the rule."""
+    rules = []
+    for dr in page.get_drawings():
+        r = dr["rect"]
+        if r.height < 1.2 and r.width > 3: rules.append(r)  # stroked or filled thin horizontal rule
+    if not rules: return spans
+    used = set(); out = []
+    for r in rules:
+        inside = lambda sp: sp["bbox"][0] >= r.x0 - 1.5 and sp["bbox"][2] <= r.x1 + 1.5   # span sits within the bar
+        num = [sp for sp in spans if id(sp) not in used and inside(sp) and -0.5 < r.y0 - sp["bbox"][3] + 2 < 1.4 * sp["size"]]
+        den = [sp for sp in spans if id(sp) not in used and inside(sp) and -0.5 < sp["bbox"][1] - r.y1 + 2 < 1.4 * sp["size"]]
+        if not num or not den: continue
+        txt = lambda L: "".join(sp["text"] for sp in sorted(L, key=lambda sp: sp["bbox"][0])).replace(" ", "~")
+        size = max(sp["size"] for sp in num + den)
+        synthetic = {"text": f"frac{{{txt(num)}}}{{{txt(den)}}}", "size": size, "font": num[0]["font"],
+                     "origin": (r.x0, r.y1 + 0.3 * size), "bbox": (r.x0, min(sp["bbox"][1] for sp in num), r.x1, max(sp["bbox"][3] for sp in den))}
+        for sp in num + den: used.add(id(sp))
+        out.append(synthetic)
+    return [sp for sp in spans if id(sp) not in used] + out
+
+
 def parse(path):
     doc = pymupdf.open(path); lines = []
     for pno, page in enumerate(doc):
@@ -20,6 +43,7 @@ def parse(path):
             for l in b.get("lines", []):
                 for sp in l["spans"]:
                     if sp["text"].strip(): spans.append(sp)
+        spans = fold_fractions(page, spans)
         # group spans into baselines
         spans.sort(key=lambda sp: (sp["origin"][1], sp["bbox"][0]))
         groups = []

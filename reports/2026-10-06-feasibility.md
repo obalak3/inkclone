@@ -94,3 +94,9 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - Harvest union across builds (keyed by source stroke) so classes persist.
 - Parser generalised: any short bold line at body size+ is a header ("Question 1"), front matter only on page 1, standalone equation lines -> `math` display lines. Verified on set05 and on an unseen typed HW (`other_HW3`, 7 questions): full page renders, headers and prose right.
 - Limits found: LaTeX fractions come out as separate numerator/denominator lines; blackboard-bold ℤ renders as Z; hyphen bank had collapsed -> hyphen now taken from one stroke of an '=' when the bank is thin.
+
+## Fractions + rare capitals (~22:15)
+
+- LaTeX fraction bars in these PDFs are stroked lines (m/l/S), not filled rects. `fold_fractions` now takes any thin horizontal drawing as a bar and folds the spans sitting inside its x-extent just above/below into `frac{num}{den}`; `page.fraction` renders them stacked with a bar borrowed from '='. Containment rule needed (first attempt swallowed whole prose lines).
+- Rare capitals (<3 instances) default to the measured capital extent so Q/X/Y are not oversized.
+- Remaining parser quirks: superscripts inside fractions lose the ^ marker; an isolated operator can be mistaken for a numerator.

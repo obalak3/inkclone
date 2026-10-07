@@ -198,6 +198,7 @@ if __name__ == "__main__":
     if caps:
         cap_ext = (float(np.median([e[0] for e in caps])), float(np.median([e[1] for e in caps])))
         for dgt in "0123456789": letter_ext.setdefault(dgt, cap_ext)  # digits sit at capital height
+        for cap in "ABCDEFGHIJKLMNOPQRSTUVWXYZ": letter_ext.setdefault(cap, cap_ext)  # rare capitals get the typical capital extent
     pickle.dump({"words": W, "chunks": C, "letters": L, "letter_h": letter_h, "letter_ext": letter_ext}, open("data/derived/units.pkl", "wb"))
     print("letter extents (top,bottom in xh):", {c: (round(a, 2), round(b, 2)) for c, (a, b) in sorted(letter_ext.items()) if c in "aeghlpt"})
     print(f"words: {sum(map(len, W.values()))} instances / {len(W)} distinct | chunks: {sum(map(len, C.values()))} / {len(C)} | letters kept: {sum(map(len, L.values()))}")

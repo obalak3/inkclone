@@ -72,8 +72,40 @@ class Page:
             x += u["width"] + dx
         return strokes, x
 
+    def fraction(self, tok, used):
+        """frac{num}{den} -> numerator above a bar, denominator below. Returns (strokes, width) or None."""
+        m = re.match(r"^frac\{(.*?)\}\{(.*?)\}(.*)$", tok)
+        if not m: return None
+        num, den, tail = m.group(1).replace("~", " "), m.group(2).replace("~", " "), m.group(3)
+        parts = []
+        for text, dy in ((num, -1.75), (den, 1.35)):
+            st, x = [], 0.0
+            for k, t in enumerate(text.split()):
+                ts, tw = self.token(t, used)
+                for p_ in ts: q = p_.copy(); q[:, 0] += x; st.append(q)
+                x += tw + 0.6
+            x -= 0.6
+            for p_ in st: p_[:, :2] *= 0.8; p_[:, 1] += dy * 0.8
+            parts.append((st, x * 0.8))
+        w = max(parts[0][1], parts[1][1]) + 0.4
+        strokes = []
+        for st, pw in parts:
+            for p_ in st: p_[:, 0] += (w - pw) / 2; strokes.append(p_)
+        bar = self.symbol("-")
+        if bar:
+            b = max(bar["pieces"], key=len).copy(); b[:, 0] = (b[:, 0] - b[:, 0].min()) / max(b[:, 0].max() - b[:, 0].min(), 1e-6) * w
+            b[:, 1] = b[:, 1] - b[:, 1].mean() - 0.45; strokes.append(b)
+        if tail:
+            ts, tw = self.token(tail, used)
+            for p_ in ts: q = p_.copy(); q[:, 0] += w + 0.2; strokes.append(q)
+            w += tw + 0.2
+        return strokes, w
+
     def token(self, tok, used):
-        """-> (strokes in xh units, width in xh). Handles letters, digits, symbols, _ and ^."""
+        """-> (strokes in xh units, width in xh). Handles letters, digits, symbols, _ and ^, frac{}{}."""
+        if tok.startswith("frac{"):
+            fr = self.fraction(tok, used)
+            if fr: return fr
         strokes, x, i = [], 0.0, 0
         mode, group = None, False  # sub/superscript state
         while i < len(tok):
