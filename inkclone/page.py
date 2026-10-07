@@ -15,10 +15,11 @@ MARGIN_L, MARGIN_R, MARGIN_T, MARGIN_B = 18.0, 14.0, 16.0, 20.0
 
 
 class Page:
-    def __init__(self, seed=0, body_xh=4.2, header_xh=6.4):
+    def __init__(self, seed=0, body_xh=3.75, header_xh=6.6, two_column=True, note_scale=0.8, col_split=0.52):
         self.s = Synth2(seed=seed); self.rng = random.Random(seed)
         self.sym = pickle.load(open("data/derived/symbols_final.pkl", "rb"))
         self.body_xh, self.header_xh = body_xh, header_xh
+        self.two_column, self.note_scale, self.col_split = two_column, note_scale, col_split
         self.missing = collections.Counter()
         self.s.pen_target = 0.49  # the writer's measured pen width in pt
         self.doc_slant = max(-9.0, min(0.0, self.rng.gauss(self.s.stats.get("slant_deg_median", -4.4), 1.5)))
@@ -101,34 +102,65 @@ class Page:
             x += w * xh * jit + wg * xh * self.rng.uniform(0.7, 1.25)
         return out, []
 
+    def sections(self, lines, include_title=False):
+        """Group parsed lines into sections: header, intro prose (before code), code lines, notes (prose after code)."""
+        secs, cur = [], None
+        for ln in lines:
+            if ln["kind"] == "meta" or (ln["kind"] == "title" and not include_title): continue
+            if ln["kind"] in ("header", "title") or cur is None:
+                cur = {"header": ln["text"] if ln["kind"] in ("header", "title") else None, "intro": [], "code": [], "notes": []}; secs.append(cur)
+                if ln["kind"] not in ("header", "title"): cur[("code" if ln["kind"] == "code" else "intro")].append(ln)
+                continue
+            if ln["kind"] == "code": cur["code"].append(ln)
+            elif cur["code"]: cur["notes"].append(ln)
+            else: cur["intro"].append(ln)
+        return secs
+
+    def prose_block(self, text, xh, x0, y, max_w, used):
+        """wrap a paragraph; returns (strokes, new y)."""
+        out, rest = [], text
+        while rest:
+            st, left = self.line_strokes(rest, xh, x0, y + 1.8 * xh, used, max_w=max_w); out += st; y += 4.0 * xh
+            rest = " ".join(left) if left else ""
+        return out, y
+
     def layout(self, lines, include_title=False):
         pages, cur, y = [], [], MARGIN_T; used = set()
+        full_w = PAGE_W - MARGIN_L - MARGIN_R
         def newpage():
             nonlocal cur, y
             if cur: pages.append(cur)
             cur, y = [], MARGIN_T
         def need(h):
-            nonlocal y
             if y + h > PAGE_H - MARGIN_B: newpage()
-        prev_kind = None
-        for ln in lines:
-            kind, text = ln["kind"], ln["text"]
-            if kind == "meta" or (kind == "title" and not include_title): continue
-            xh = self.header_xh if kind in ("header", "title") else self.body_xh
-            if kind == "header":
-                y += 1.6 * self.body_xh if prev_kind else 0; need(3.2 * xh)
-                st, _ = self.line_strokes(text, xh, MARGIN_L, y + 2.2 * xh, used); cur += st; y += 3.4 * xh
-            elif kind == "code":
-                need(3 * xh); x0 = MARGIN_L + 3.2 * xh * ln["indent"] + (0 if ln["indent"] == 0 else 0.6 * xh)
-                st, _ = self.line_strokes(text, xh, x0, y + 1.8 * xh, used); cur += st; y += 3.6 * xh
-            else:  # prose: wrap
-                rest = text; first = True
-                while rest:
-                    need(3 * xh)
-                    st, left = self.line_strokes(rest, xh, MARGIN_L, y + 1.8 * xh, used, max_w=PAGE_W - MARGIN_L - MARGIN_R)
-                    cur += st; y += 4.0 * xh; rest = " ".join(left) if left else ""
-                if prev_kind == "code": pass
-            prev_kind = kind
+        xh = self.body_xh
+        for si, sec in enumerate(self.sections(lines, include_title)):
+            if sec["header"]:
+                if si: y += 2.0 * xh
+                need(3.2 * self.header_xh + 8 * xh)
+                st, _ = self.line_strokes(sec["header"], self.header_xh, MARGIN_L, y + 2.2 * self.header_xh, used); cur += st; y += 3.6 * self.header_xh
+            for ln in sec["intro"]:
+                need(4 * xh); st, y = self.prose_block(ln["text"], xh, MARGIN_L, y, full_w, used); cur += st
+            if sec["code"]:
+                need(3.6 * xh * min(len(sec["code"]), 4))
+                y_top = y; code_strokes = []
+                for ln in sec["code"]:
+                    need(3.6 * xh)
+                    if y == MARGIN_T: y_top = y; code_strokes = []
+                    x0 = MARGIN_L + 3.2 * xh * ln["indent"] + (0 if ln["indent"] == 0 else 0.6 * xh)
+                    st, _ = self.line_strokes(ln["text"], xh, x0, y + 1.8 * xh, used); cur += st; code_strokes += st; y += 3.6 * xh
+                y_code_end = y
+                if self.two_column and sec["notes"] and code_strokes:
+                    code_right = max(p[:, 0].max() for p in code_strokes)
+                    nx0 = max(code_right + 2.5 * xh, MARGIN_L + 0.42 * full_w); nw = PAGE_W - MARGIN_R - nx0; nxh = xh * self.note_scale
+                    if nw >= 0.30 * full_w:
+                        yn = y_top + 0.6 * xh; pending = list(sec["notes"])
+                        while pending and yn < PAGE_H - MARGIN_B - 4 * nxh:
+                            ln = pending.pop(0); st, yn = self.prose_block(ln["text"], nxh, nx0, yn, nw, used); cur += st; yn += 0.8 * nxh
+                        y = max(y_code_end, yn)
+                        sec = dict(sec, notes=pending)  # anything that did not fit goes below, full width
+            for ln in sec["notes"]:
+                need(4 * xh); st, y = self.prose_block(ln["text"], xh, MARGIN_L, y, full_w, used); cur += st
         newpage(); return pages
 
     def render(self, pages, out_prefix, dpi=300, vector=True):

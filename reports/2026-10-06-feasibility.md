@@ -70,3 +70,9 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - `reports/pick_the_fake.png` + sealed `pick_the_fake_KEY.txt`: 24 word crops, 12 real / 12 assembled. Author's own read: ~5 fakes obvious (garbled), ~7 plausible.
 - Vector export: `page_set05_eval.vector.pdf` (one filled ribbon per stroke, 4,341 paths on p1), opens as real ink.
 - Next: two-column HW layout (code left, notes right, smaller), body x-height matched to HW5 (~3.6pt).
+
+## Two-column HW layout (~20:30)
+
+- Measured HW x-height 3.65-3.9pt (was rendering at 4.2). Body now 3.75, header 6.6.
+- `page.py` sections: header, intro prose full width, code left, notes right at 0.8x starting level with the code; column split measured from the actual code width, fallback to notes-below when code is wide; overflow notes continue below.
+- `reports/side_by_side_hw5.png` regenerated: structure now matches the real HW5 page (code left, small notes right, one page for the content).
