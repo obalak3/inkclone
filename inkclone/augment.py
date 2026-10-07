@@ -1,0 +1,73 @@
+"""Natural variants of real glyph instances by small smooth deformations.
+
+Every variant is built from one real instance: a low-frequency bend along the stroke,
+a slightly longer or shorter tail, a nudged dot/cross, a little shear, scale and pen
+weight. All deformations are gentle (a few percent of the x-height) so the letter
+stays the writer's; the point is that the same letter never repeats identically.
+"""
+import numpy as np
+
+
+def _arc_t(p):
+    d = np.r_[0, np.cumsum(np.linalg.norm(np.diff(p[:, :2], axis=0), axis=1))]
+    return d / d[-1] if d[-1] > 1e-9 else np.linspace(0, 1, len(p))
+
+
+def variant(inst, rng, strength=1.0):
+    pieces = [p.copy() for p in inst["pieces"]]
+    allp = np.vstack([p[:, :2] for p in pieces]); h = max(allp[:, 1].max() - allp[:, 1].min(), 0.5)
+    main_i = int(np.argmax([len(p) for p in pieces]))
+    s = strength
+    # global affine: anisotropic scale, shear, tiny rotation
+    sx, sy = rng.uniform(1 - 0.06 * s, 1 + 0.06 * s), rng.uniform(1 - 0.06 * s, 1 + 0.06 * s)
+    shear = np.tan(np.radians(rng.uniform(-3, 3) * s)); rot = np.radians(rng.uniform(-2, 2) * s)
+    c, sn = np.cos(rot), np.sin(rot)
+    for p in pieces:
+        x, y = p[:, 0] * sx, p[:, 1] * sy
+        x = x + y * shear
+        p[:, 0], p[:, 1] = c * x - sn * y, sn * x + c * y
+    # smooth bend along each stroke (two low harmonics), amplitude ~5% of the glyph height
+    for p in pieces:
+        if len(p) < 6: continue
+        t = _arc_t(p); amp = 0.05 * h * s
+        for k in (1, 2):
+            ph_x, ph_y = rng.uniform(0, 2 * np.pi), rng.uniform(0, 2 * np.pi)
+            p[:, 0] += amp / k * np.sin(2 * np.pi * k * t * 0.5 + ph_x)
+            p[:, 1] += amp / k * np.sin(2 * np.pi * k * t * 0.5 + ph_y)
+    # tail: stretch or shrink the last 15% of the main stroke along its own direction
+    m = pieces[main_i]
+    if len(m) >= 10:
+        n_tail = max(3, int(0.15 * len(m))); f = rng.uniform(0.8, 1.2)
+        base = m[-n_tail - 1, :2]; m[-n_tail:, :2] = base + (m[-n_tail:, :2] - base) * f
+    # diacritics (small pieces): nudge position, mostly upward/sideways
+    for i, p in enumerate(pieces):
+        ext = p[:, :2].max(0) - p[:, :2].min(0)
+        if i != main_i and max(ext) < 0.45 * h:
+            p[:, 0] += rng.uniform(-0.12, 0.12) * h * s; p[:, 1] += rng.uniform(-0.15, 0.08) * h * s
+    # pen weight
+    wf = rng.uniform(0.9, 1.1)
+    for p in pieces: p[:, 2] *= wf
+    # re-anchor: left edge at 0, baseline unchanged
+    x0 = min(p[:, 0].min() for p in pieces)
+    for p in pieces: p[:, 0] -= x0
+    allq = np.vstack([p[:, :2] for p in pieces])
+    out = dict(inst); out.update({"pieces": pieces, "width": float(allq[:, 0].max()), "height": float(allq[:, 1].max() - allq[:, 1].min()),
+                                  "synthetic": True, "seed_src": inst.get("src")})
+    return out
+
+
+def augment_bank(bank, rng, per_instance=10, target_min=40, cap=200):
+    """Add variants so every glyph has at least `target_min` instances (up to `cap`).
+    Glyphs with many real instances get a couple of variants each; rare ones get `per_instance`."""
+    out = {}
+    for c, insts in bank.items():
+        real = [u for u in insts if not u.get("synthetic")]
+        if not real: out[c] = list(insts); continue
+        n_var = per_instance if len(real) < 8 else max(2, min(per_instance, (target_min - len(real)) // len(real) + 1)) if len(real) < target_min else 1
+        new = list(real)
+        for u in real:
+            for _ in range(n_var):
+                if len(new) >= cap: break
+                new.append(variant(u, rng))
+        out[c] = new
+    return out

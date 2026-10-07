@@ -118,3 +118,11 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - Fix: strict quality tier. Keep only the best 40% of letters by template score (<= 0.157) and only chunks whose WORST letter passes. Chunks 729 -> 58, letters 3458 -> 1619. `reports/misspell_after.png`: all four words now spelled correctly; "Model" still bad.
 - Trade-off: assembled words are now mostly letter-by-letter (more "printed" than his real semi-joined hand) but legible and in his letterforms. New pick-the-fake sheet (seed 21) regenerated for a retest.
 - Full-page check with the strict bank (`out/set05_handwritten_p1.png`): two bugs found and fixed, case-insensitive whole-word fallback (lowercase "distance" drew the capitalised HW5 "Distance") and over-wide labeled boxes ("1)Shortest" labeled as "Shortest"). Page now reads as a handwritten page at page scale; remaining tells are rare glyphs: k, J, 0.
+
+## Variants + curation groundwork (2026-10-07 evening)
+
+- Writer's direction: pick-the-fake is not the bar, legibility is; do not remove messy-but-legible letters; generate natural variants from real instances instead of relying only on data.
+- `inkclone/augment.py`: per-instance variants (anisotropic scale, shear, tiny rotation, low-harmonic bend along the stroke, tail stretch, diacritic nudge, pen weight). 1,802 real letters -> 4,607; symbols likewise. Demo `reports/variants_demo.png` (Q/Y/B from one seed each).
+- Stroke-count sanity filter per letter (mode over whole-stroke instances) and a blocklist hook (`data/curation/blocklist.json`, keyed by source) for the visual pass. Labelled curation grids: `reports/curation_lower.png`, `curation_upper.png`, label->source map `data/curation/grid_labels.json`.
+- Vector ink is the primary output; previews rasterised from it.
+- Open: lowercase j has no usable real seed (all mis-cut); needs composition (i stem + descender hook) or a cleaner source instance.

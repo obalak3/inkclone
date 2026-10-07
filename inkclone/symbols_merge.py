@@ -17,5 +17,8 @@ if __name__ == "__main__":
     if "0" in out: out["0"] = [u for u in out["0"] if closed(u)] or out["0"]
     for bad in ("4", "5", "6"):  # sheet instances for these are mislabeled or too few; better a gap than a wrong digit
         out.pop(bad, None)
+    from inkclone.augment import augment_bank
+    import random
+    out = augment_bank(out, random.Random(11), per_instance=10, target_min=30, cap=150)
     pickle.dump(out, open("data/derived/symbols_final.pkl", "wb"))
     print("final symbol bank:", {c: len(v) for c, v in sorted(out.items()) if v})

@@ -59,7 +59,7 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
         for k, ch in enumerate(seg):
             pieces = [w["strokes"][i][i0:i1].copy() for i, i0, i1 in ch["pieces"]]
             px = min(p[:, 0].min() for p in pieces)
-            u = unit(normalise(pieces, px, baseline, xh), ch["char"], src)
+            u = unit(normalise(pieces, px, baseline, xh), ch["char"], src); u["k"] = k
             u["whole"] = not ch["joined_prev"] and not ch["joined_next"]  # complete pen stroke(s), no guessed cut
             lo, hi = HEIGHT_RANGE[letter_class(ch["char"])]
             if lo <= u["height"] <= hi and 0.15 <= u["width"] <= 4.5: L[ch["char"]].append(u)
@@ -157,15 +157,28 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
     report['_chunks'] = cdrop
     # strict quality tier: keep only the best 40% of letters by template score, and only chunks whose
     # WORST letter would pass that bar (mislabeled chunks hide a bad letter behind a good mean)
+    # stroke-count sanity: the writer's stroke count per letter is consistent; fewer = incomplete (a one-line x),
+    # many more = carrying a neighbour's fragment. Diacritics count, so use the mode over whole-stroke instances.
+    import json, os
+    for t, insts in list(L.items()):
+        counts = collections.Counter(len(u["pieces"]) for u in insts if u.get("whole")) or collections.Counter(len(u["pieces"]) for u in insts)
+        mode = counts.most_common(1)[0][0]
+        if mode >= 2: L[t] = [u for u in insts if mode <= len(u["pieces"]) <= mode + 1]
+        else: L[t] = [u for u in insts if len(u["pieces"]) <= 2]
+    # curated blocklist (keyed by source: notebook, page, word, char index) survives rebuilds
+    bl_path = "data/curation/blocklist.json"
+    if os.path.exists(bl_path):
+        block = {tuple(k) for k in json.load(open(bl_path))}
+        for t, insts in list(L.items()): L[t] = [u for u in insts if tuple(u["src"]) + (u.get("k"),) not in block]
     letter_scores = np.array([u["score"] for v in L.values() for u in v if u.get("score") is not None])
     strict = float(np.quantile(letter_scores, 0.40)) if len(letter_scores) else 1.0
-    loose = {t: list(v) for t, v in L.items()}  # pre-strict pool, kept for rare letters
+    loose = {t: list(v) for t, v in L.items()}  # pool after stroke-count + blocklist, before the strict score cut
     for t, insts in list(L.items()):
         kept = [u for u in insts if u.get("score") is not None and u["score"] <= strict]
         # shape sanity for a few letters whose mis-cuts have a characteristic look
         if t == "k": kept = [u for u in kept if u["width"] >= 0.55 and len(u["pieces"]) >= 1 and u["height"] >= 1.6]
-        if len(kept) >= 4: L[t] = kept
-        elif len(kept) >= 2 and len(loose[t]) < 6: L[t] = kept
+        if len(loose[t]) < 30: L[t] = loose[t]       # rare letter: keep the whole (stroke-count-filtered, unblocked) pool; curation decides
+        elif len(kept) >= 4: L[t] = kept
         else: L[t] = sorted(loose[t], key=lambda u: u.get("score") if u.get("score") is not None else 9)[:max(4, len(loose[t]) // 3)]
     chunk_worst = {}
     for (src, chars, run0), sc in list(chunk_scores.items()): pass
@@ -176,6 +189,10 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
             if worst is not None and worst <= strict: kept.append(u)
         if kept: C[t] = kept
         else: del C[t]
+    # natural variants: every letter gets siblings bent/stretched/nudged from its real instances
+    from .augment import augment_bank
+    import random as _random
+    before = sum(map(len, L.values())); L = augment_bank(L, _random.Random(7)); report['_aug'] = (before, sum(map(len, L.values())))
     report['_strict'] = (strict, sum(map(len, L.values())), sum(map(len, C.values())))
     report['_words'] = tuple(wrep) + (dropped, cut)
     return dict(W), dict(C), dict(L), report
@@ -226,6 +243,7 @@ if __name__ == "__main__":
     print("letter extents (top,bottom in xh):", {c: (round(a, 2), round(b, 2)) for c, (a, b) in sorted(letter_ext.items()) if c in "aeghlpt"})
     print(f"words: {sum(map(len, W.values()))} instances / {len(W)} distinct | chunks: {sum(map(len, C.values()))} / {len(C)} | letters kept: {sum(map(len, L.values()))}")
     print("chunks dropped for template mismatch:", rep.pop("_chunks"))
+    ag = rep.pop("_aug"); print(f"augmentation: {ag[0]} real letter instances -> {ag[1]} with variants")
     st_ = rep.pop("_strict"); print(f"strict tier: letter score <= {st_[0]:.3f}; letters {st_[1]}, chunks {st_[2]}")
     wr = rep.pop("_words"); print(f"word filters: {wr[0]} -> {wr[1]} (outliers) -> {wr[1]-wr[2]} (template mismatch, cut {wr[3]:.2f})")
     nw = sum(1 for v in L.values() for i in v if i.get("whole")); print(f"letters that are complete strokes (no cut): {nw}/{sum(map(len, L.values()))}")
