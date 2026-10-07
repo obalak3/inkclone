@@ -26,8 +26,15 @@ def fold_fractions(page, spans):
         num = [sp for sp in spans if id(sp) not in used and inside(sp) and -0.5 < r.y0 - sp["bbox"][3] + 2 < 1.4 * sp["size"]]
         den = [sp for sp in spans if id(sp) not in used and inside(sp) and -0.5 < sp["bbox"][1] - r.y1 + 2 < 1.4 * sp["size"]]
         if not num or not den: continue
-        txt = lambda L: "".join(sp["text"] for sp in sorted(L, key=lambda sp: sp["bbox"][0])).replace(" ", "~")
         size = max(sp["size"] for sp in num + den)
+        def txt(L):
+            out, base = "", max(L, key=lambda sp: sp["size"])["origin"][1]
+            for sp in sorted(L, key=lambda sp: sp["bbox"][0]):
+                t = sp["text"].strip()
+                if sp["size"] < 0.8 * size and sp["origin"][1] < base - 0.1 * size: t = "^" + t if len(t) == 1 else "^{" + t + "}"
+                elif sp["size"] < 0.8 * size and sp["origin"][1] > base + 0.1 * size: t = "_" + t if len(t) == 1 else "_{" + t + "}"
+                out += t
+            return out.replace(" ", "~")
         synthetic = {"text": f"frac{{{txt(num)}}}{{{txt(den)}}}", "size": size, "font": num[0]["font"],
                      "origin": (r.x0, r.y1 + 0.3 * size), "bbox": (r.x0, min(sp["bbox"][1] for sp in num), r.x1, max(sp["bbox"][3] for sp in den))}
         for sp in num + den: used.add(id(sp))

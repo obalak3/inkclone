@@ -44,6 +44,12 @@ class Page:
 
     def symbol(self, c):
         if c == ">" and not self.sym.get(">") and self.sym.get("<"): return self.mirror(self.rng.choice(self.sym["<"]))
+        if c == "/" and len(self.sym.get("/", [])) < 5 and len(self.sym.get("1", [])) >= 5:
+            one = self.rng.choice(self.sym["1"][:40]); st = max(one["pieces"], key=len).copy()
+            st[:, 1] -= st[:, 1].mean(); st[:, 1] *= 1.9 / max(st[:, 1].max() - st[:, 1].min(), 1e-6)  # ~1.9 xh tall
+            st[:, 0] = st[:, 0] - st[:, 0].mean() - st[:, 1] * 0.45  # lean it: top to the right
+            st[:, 1] += -0.75; st[:, 0] -= st[:, 0].min()
+            return {"text": "/", "pieces": [st], "width": float(st[:, 0].max()), "height": 1.9, "slant": one.get("slant"), "pen": one.get("pen")}
         if c == "-" and len(self.sym.get("-", [])) < 5 and len(self.sym.get("=", [])) >= 5:
             eq = self.rng.choice(self.sym["="][:40]); bar = max(eq["pieces"], key=len).copy()
             bar[:, 1] -= bar[:, 1].mean() - (-0.45)  # a hyphen sits a little under mid x-height
@@ -60,9 +66,15 @@ class Page:
         return self.rng.choice(pool[:n_good]) if len(pool) >= 4 else self.rng.choice(pool)
 
     def composite(self, c):
-        """Build ⇒ → ⇔ from parts laid tightly left to right. -> (strokes, width) or None."""
+        """Build ⇒ → ⇔ from parts laid tightly left to right; ≠ is '=' with the slash centred. -> (strokes, width) or None."""
         parts = self.COMPOSITE.get(c)
         if not parts: return None
+        if c == "≠":
+            eq, sl = self.symbol("="), self.symbol("/")
+            if eq is None or sl is None: return None
+            strokes = [p.copy() for p in eq["pieces"]]; dx = (eq["width"] - sl["width"]) / 2
+            for p in sl["pieces"]: q = p.copy(); q[:, 0] += dx; strokes.append(q)
+            return strokes, eq["width"]
         strokes, x = [], 0.0
         for k, pc in enumerate(parts):
             u = self.symbol(pc)
