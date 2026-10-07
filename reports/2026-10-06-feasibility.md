@@ -126,3 +126,7 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - Stroke-count sanity filter per letter (mode over whole-stroke instances) and a blocklist hook (`data/curation/blocklist.json`, keyed by source) for the visual pass. Labelled curation grids: `reports/curation_lower.png`, `curation_upper.png`, label->source map `data/curation/grid_labels.json`.
 - Vector ink is the primary output; previews rasterised from it.
 - Open: lowercase j has no usable real seed (all mis-cut); needs composition (i stem + descender hook) or a cleaner source instance.
+
+## Variance + correctness pass (2026-10-07 evening, after writer review of a notes block)
+- Writer's findings: identical "after" pasted twice in one block (the font behaviour he rejected), "er" in it illegible, "stopping" rendered "stouping".
+- Causes: whole words had no variants and were reused; "pp" chunk from "Suppose" was not a pp. Fixes: word variants (1,211 -> 4,538), worst-letter filter on words, no same-instance reuse within a page, chunks disabled entirely (assembly = curated letters only), word-level blocklist (the one bad "after").

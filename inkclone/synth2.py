@@ -90,7 +90,7 @@ class Synth2:
         if not cands and text.islower():  # lowercase token: only lowercase instances (never a capitalised one)
             cands = [u for u in self.lower.get(text.lower(), []) if u["text"].islower()] or None
         if cands:
-            fresh = [c for c in cands if id(c) not in used] or cands
+            fresh = [c for c in cands if id(c) not in used] or cands  # variants make a fresh one almost always available
             u = self.pick_by_quality(fresh); used.add(id(u)); pieces, w = self.conform(u["pieces"], u); return pieces, w, src
         units = self.tile(text)
         # decide joins between adjacent single-letter units at the writer's measured pair rates

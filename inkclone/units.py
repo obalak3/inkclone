@@ -113,7 +113,7 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
             pieces = [w["strokes"][i][i0:i1].copy() for i, i0, i1 in ch["pieces"]]
             px = min(p[:, 0].min() for p in pieces); s_ = score(ch["char"], normalise(pieces, px, baseline, xh))
             if s_ is not None: sc.append(s_)
-        word_scores.append((w["text"], (w["source"], w["page"], w["text"]), float(np.mean(sc)) if sc else None))
+        word_scores.append((w["text"], (w["source"], w["page"], w["text"]), float(np.mean(sc)) if sc else None, float(np.max(sc)) if sc else None))
         # per-run (chunk) scores for this word
         per_char = []
         for ch in seg:
@@ -134,14 +134,15 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
             chars = "".join(seg[k]["char"] for k in run); scs = [per_char[k] for k in run if per_char[k] is not None]
             chunk_scores[((w["source"], w["page"], w["text"]), chars, run[0])] = float(np.mean(scs)) if scs else None
             chunk_worst_scores[((w["source"], w["page"], w["text"]), chars, run[0])] = float(np.max(scs)) if scs else None
-    by_src = {src: sc for _, src, sc in word_scores}
-    vals = np.array([sc for _, _, sc in word_scores if sc is not None]); cut = float(np.quantile(vals, 0.85))
+    by_src = {src: sc for _, src, sc, _ in word_scores}; worst_by_src = {src: wst for _, src, _, wst in word_scores}
+    vals = np.array([sc for _, _, sc, _ in word_scores if sc is not None]); cut = float(np.quantile(vals, 0.85))
     dropped = 0
     for t, insts in list(W.items()):
         kept = []
         for u in insts:
-            u["score"] = by_src.get(u["src"]); 
+            u["score"] = by_src.get(u["src"]); u["worst"] = worst_by_src.get(u["src"])
             if u["score"] is not None and u["score"] > cut: dropped += 1
+            elif u["worst"] is not None and u["worst"] > 2.2 * cut: dropped += 1   # one illegible letter spoils the word
             else: kept.append(u)
         if kept: W[t] = kept
         else: del W[t]
@@ -171,6 +172,9 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
     if os.path.exists(bl_path):
         block = {tuple(k) for k in json.load(open(bl_path))}
         for t, insts in list(L.items()): L[t] = [u for u in insts if tuple(u["src"]) + (u.get("k"),) not in block]
+        for t, insts in list(W.items()):   # word-level entries carry None as the 4th field
+            W[t] = [u for u in insts if tuple(u["src"]) + (None,) not in block]
+            if not W[t]: del W[t]
     letter_scores = np.array([u["score"] for v in L.values() for u in v if u.get("score") is not None])
     strict = float(np.quantile(letter_scores, 0.40)) if len(letter_scores) else 1.0
     loose = {t: list(v) for t, v in L.items()}  # pool after stroke-count + blocklist, before the strict score cut
@@ -206,6 +210,8 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
         if i_pool and g_pool:
             L["j"] = [compose_j(rj.choice(i_pool), rj.choice(g_pool), rj) for _ in range(12)]
     before = sum(map(len, L.values())); L = augment_bank(L, _random.Random(7)); report['_aug'] = (before, sum(map(len, L.values())))
+    wb = sum(map(len, W.values())); W = augment_bank(W, _random.Random(5), per_instance=4, target_min=6, cap=40, strength=0.7); report['_waug'] = (wb, sum(map(len, W.values())))
+    C = {}  # chunks are off: they cannot be curated letter by letter and mislabels slip through ("pp" that is not a pp)
     report['_strict'] = (strict, sum(map(len, L.values())), sum(map(len, C.values())))
     report['_words'] = tuple(wrep) + (dropped, cut)
     return dict(W), dict(C), dict(L), report
@@ -256,6 +262,7 @@ if __name__ == "__main__":
     print("letter extents (top,bottom in xh):", {c: (round(a, 2), round(b, 2)) for c, (a, b) in sorted(letter_ext.items()) if c in "aeghlpt"})
     print(f"words: {sum(map(len, W.values()))} instances / {len(W)} distinct | chunks: {sum(map(len, C.values()))} / {len(C)} | letters kept: {sum(map(len, L.values()))}")
     print("chunks dropped for template mismatch:", rep.pop("_chunks"))
+    wa = rep.pop("_waug"); print(f"word variants: {wa[0]} -> {wa[1]}")
     ag = rep.pop("_aug"); print(f"augmentation: {ag[0]} real letter instances -> {ag[1]} with variants")
     st_ = rep.pop("_strict"); print(f"strict tier: letter score <= {st_[0]:.3f}; letters {st_[1]}, chunks {st_[2]}")
     wr = rep.pop("_words"); print(f"word filters: {wr[0]} -> {wr[1]} (outliers) -> {wr[1]-wr[2]} (template mismatch, cut {wr[3]:.2f})")
