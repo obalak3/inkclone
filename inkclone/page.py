@@ -32,7 +32,7 @@ class Page:
         return self.rng.gauss(0, 0.35 * self.drift["margin_sd_pt"])  # measured sd includes indentation noise; use a third
 
     # ---- glyph sources -------------------------------------------------------------
-    PUNCT_FROM_PROSE = set(";:'?!")  # commas/periods/hyphens from prose cuts are too dirty; use the sheet bank
+    PUNCT_FROM_PROSE = set("'?!")  # prose-cut punctuation is dirty; ':' and ';' are composed from the writer's own periods/commas
 
     COMPOSITE = {"⇒": "=>", "→": "->", "⇔": "<=>", "↔": "<->", "≠": "=/"}
 
@@ -44,6 +44,12 @@ class Page:
 
     def symbol(self, c):
         if c == ">" and not self.sym.get(">") and self.sym.get("<"): return self.mirror(self.rng.choice(self.sym["<"]))
+        if c in ":;" and len(self.sym.get(".", [])) >= 3:
+            top = self.rng.choice(self.sym["."]); bot = self.rng.choice(self.sym["."] if c == ":" else (self.sym.get(",") or self.sym["."]))
+            pt = [p.copy() for p in top["pieces"]]; pb = [p.copy() for p in bot["pieces"]]
+            for p in pt: p[:, 1] -= 0.75   # upper dot at mid x-height
+            w = max(max(p[:, 0].max() for p in pt), max(p[:, 0].max() for p in pb))
+            return {"text": c, "pieces": pt + pb, "width": float(w), "height": 1.0, "slant": top.get("slant"), "pen": top.get("pen")}
         if c == "/" and len(self.sym.get("/", [])) < 5 and len(self.sym.get("1", [])) >= 5:
             one = self.rng.choice(self.sym["1"][:40]); st = max(one["pieces"], key=len).copy()
             st[:, 1] -= st[:, 1].mean(); st[:, 1] *= 1.9 / max(st[:, 1].max() - st[:, 1].min(), 1e-6)  # ~1.9 xh tall
