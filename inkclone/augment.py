@@ -71,3 +71,32 @@ def augment_bank(bank, rng, per_instance=10, target_min=40, cap=200):
                 new.append(variant(u, rng))
         out[c] = new
     return out
+
+
+def compose_j(i_inst, g_inst, rng):
+    """A lowercase j from the writer's own parts: the i's stem and dot, with the stem continued
+    below the baseline into the descender hook taken from a g (or y)."""
+    pieces = [p.copy() for p in i_inst["pieces"]]
+    main_i = int(np.argmax([len(p) for p in pieces])); stem = pieces[main_i]
+    # stem bottom = the lowest point; orient the stem top-to-bottom
+    if stem[0, 1] > stem[-1, 1]: stem = stem[::-1]
+    bottom = stem[-1, :2].copy()
+    g = max(g_inst["pieces"], key=len)
+    below = g[g[:, 1] > 0.15]                                   # the g's descender part
+    if len(below) < 6:                                          # parametric hook fallback
+        ang = np.linspace(np.pi / 2, np.pi * 1.45, 14); r = 0.42
+        hook = np.column_stack([bottom[0] - r + r * np.cos(ang) * -1, bottom[1] + 0.35 + r * np.sin(ang) - r, np.full(14, stem[:, 2].mean())])
+    else:
+        # take the descender from its topmost point downward, keep its shape, scale to ~0.9 xh deep
+        start = int(np.argmin(below[:, 1])); seg = below[start:].copy() if start < len(below) - 6 else below.copy()
+        depth = max(seg[:, 1].max() - seg[:, 1].min(), 1e-6); f = rng.uniform(0.8, 1.0) / depth
+        seg[:, :2] = (seg[:, :2] - seg[0, :2]) * f + bottom
+        seg[:, 2] = stem[:, 2].mean(); hook = seg
+    new_stem = np.vstack([stem, hook[1:]])
+    pieces[main_i] = new_stem
+    x0 = min(p[:, 0].min() for p in pieces)
+    for p in pieces: p[:, 0] -= x0
+    allq = np.vstack([p[:, :2] for p in pieces])
+    return {"text": "j", "pieces": pieces, "width": float(allq[:, 0].max()), "height": float(allq[:, 1].max() - allq[:, 1].min()),
+            "src": ("composed", i_inst.get("src"), g_inst.get("src")), "synthetic": True, "whole": True, "score": 0.1,
+            "slant": i_inst.get("slant"), "pen": i_inst.get("pen"), "joined_prev": False, "joined_next": False}

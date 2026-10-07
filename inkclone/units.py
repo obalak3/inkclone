@@ -192,6 +192,14 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
     # natural variants: every letter gets siblings bent/stretched/nudged from its real instances
     from .augment import augment_bank
     import random as _random
+    # letters with no usable real seed are composed from the writer's own parts (j = i + g's descender)
+    from .augment import compose_j
+    rj = _random.Random(3)
+    if len(L.get("j", [])) < 3:
+        i_pool = [u for u in L.get("i", []) if u.get("whole") and len(u["pieces"]) == 2 and not u.get("synthetic")]
+        g_pool = [u for u in L.get("g", []) if not u.get("synthetic")] + [u for u in L.get("y", []) if not u.get("synthetic")]
+        if i_pool and g_pool:
+            L["j"] = [compose_j(rj.choice(i_pool), rj.choice(g_pool), rj) for _ in range(12)]
     before = sum(map(len, L.values())); L = augment_bank(L, _random.Random(7)); report['_aug'] = (before, sum(map(len, L.values())))
     report['_strict'] = (strict, sum(map(len, L.values())), sum(map(len, C.values())))
     report['_words'] = tuple(wrep) + (dropped, cut)
