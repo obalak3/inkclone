@@ -166,6 +166,7 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
         if mode >= 2: L[t] = [u for u in insts if mode <= len(u["pieces"]) <= mode + 1]
         else: L[t] = [u for u in insts if len(u["pieces"]) <= 2]
     # curated blocklist (keyed by source: notebook, page, word, char index) survives rebuilds
+    pre_block = {t: list(v) for t, v in L.items()}  # single-stroke halves of X live here before the blocklist removes them
     bl_path = "data/curation/blocklist.json"
     if os.path.exists(bl_path):
         block = {tuple(k) for k in json.load(open(bl_path))}
@@ -193,8 +194,12 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
     from .augment import augment_bank
     import random as _random
     # letters with no usable real seed are composed from the writer's own parts (j = i + g's descender)
-    from .augment import compose_j
+    from .augment import compose_j, compose_x
     rj = _random.Random(3)
+    if len(L.get("X", [])) < 3:
+        halves = [u for u in pre_block.get("X", []) if len(u["pieces"]) == 1]
+        xs = [x for x in (compose_x(halves, rj) for _ in range(12)) if x]
+        if xs: L["X"] = xs
     if len(L.get("j", [])) < 3:
         i_pool = [u for u in L.get("i", []) if u.get("whole") and len(u["pieces"]) == 2 and not u.get("synthetic")]
         g_pool = [u for u in L.get("g", []) if not u.get("synthetic")] + [u for u in L.get("y", []) if not u.get("synthetic")]

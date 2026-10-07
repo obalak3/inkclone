@@ -100,3 +100,25 @@ def compose_j(i_inst, g_inst, rng):
     return {"text": "j", "pieces": pieces, "width": float(allq[:, 0].max()), "height": float(allq[:, 1].max() - allq[:, 1].min()),
             "src": ("composed", i_inst.get("src"), g_inst.get("src")), "synthetic": True, "whole": True, "score": 0.1,
             "slant": i_inst.get("slant"), "pen": i_inst.get("pen"), "joined_prev": False, "joined_next": False}
+
+
+def compose_x(halves, rng):
+    """An X from two single-stroke halves (a '\\' and a '/') the cutter separated: overlay them centred."""
+    def slope(u):
+        p = max(u["pieces"], key=len); d = p[-1, :2] - p[0, :2]
+        return d[0] * d[1]  # >0: top-left to bottom-right ('\\'), <0: '/'
+    back = [u for u in halves if slope(u) > 0]; fwd = [u for u in halves if slope(u) < 0]
+    if not back or not fwd: return None
+    a, b = rng.choice(back), rng.choice(fwd)
+    pa = max(a["pieces"], key=len).copy(); pb = max(b["pieces"], key=len).copy()
+    for p in (pa, pb):
+        c = (p[:, :2].max(0) + p[:, :2].min(0)) / 2; p[:, :2] -= c
+    h = max(pa[:, 1].max() - pa[:, 1].min(), pb[:, 1].max() - pb[:, 1].min(), 1e-6)
+    pb[:, :2] *= (pa[:, 1].max() - pa[:, 1].min()) / max(pb[:, 1].max() - pb[:, 1].min(), 1e-6) * rng.uniform(0.95, 1.05)
+    pieces = [pa, pb]
+    x0 = min(p[:, 0].min() for p in pieces); ybot = max(p[:, 1].max() for p in pieces)
+    for p in pieces: p[:, 0] -= x0; p[:, 1] -= ybot - 0.05   # sit on the baseline
+    allq = np.vstack([p[:, :2] for p in pieces])
+    return {"text": "X", "pieces": pieces, "width": float(allq[:, 0].max()), "height": float(allq[:, 1].max() - allq[:, 1].min()),
+            "src": ("composed", a.get("src"), b.get("src")), "synthetic": True, "whole": True, "score": 0.1,
+            "slant": a.get("slant"), "pen": a.get("pen"), "joined_prev": False, "joined_next": False}
