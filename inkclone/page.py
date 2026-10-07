@@ -55,7 +55,7 @@ class Page:
             bar[:, 1] -= bar[:, 1].mean() - (-0.45)  # a hyphen sits a little under mid x-height
             bar[:, 0] -= bar[:, 0].min()
             return {"text": "-", "pieces": [bar], "width": float(bar[:, 0].max()), "height": float(bar[:, 1].max() - bar[:, 1].min()), "slant": eq.get("slant"), "pen": eq.get("pen")}
-        if c == ")" and len(self.sym.get(")", [])) < 40 and len(self.sym.get("(", [])) >= 5: return self.mirror(self.rng.choice(self.sym["("][:30]))
+        if c == ")" and len(self.sym.get("(", [])) >= 5: return self.mirror(self.rng.choice(self.sym["("][:30]))
         if c == "]" and len(self.sym.get("]", [])) < 5 and len(self.sym.get("[", [])) >= 5: return self.mirror(self.rng.choice(self.sym["["][:20]))
         if c == "0" and not self.sym.get("0") and self.s.L.get("o"): return self.s.pick_by_quality([u for u in self.s.L["o"] if u.get("whole")] or self.s.L["o"])
         if c in self.PUNCT_FROM_PROSE and self.s.L.get(c):

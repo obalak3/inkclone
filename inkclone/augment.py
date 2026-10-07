@@ -13,7 +13,7 @@ def _arc_t(p):
     return d / d[-1] if d[-1] > 1e-9 else np.linspace(0, 1, len(p))
 
 
-def variant(inst, rng, strength=1.0):
+def variant(inst, rng, strength=1.0, bend=True):
     pieces = [p.copy() for p in inst["pieces"]]
     allp = np.vstack([p[:, :2] for p in pieces]); h = max(allp[:, 1].max() - allp[:, 1].min(), 0.5)
     main_i = int(np.argmax([len(p) for p in pieces]))
@@ -29,7 +29,7 @@ def variant(inst, rng, strength=1.0):
     # smooth bend along each stroke (two low harmonics), amplitude ~5% of the glyph height.
     # Near-straight strokes (bars, parentheses, 1, l) are left alone: bending them changes the glyph.
     for p in pieces:
-        if len(p) < 6: continue
+        if not bend or len(p) < 6: continue
         chord = p[-1, :2] - p[0, :2]; L_ = np.linalg.norm(chord)
         if L_ > 1e-6:
             u_ = chord / L_; rel = p[:, :2] - p[0, :2]
@@ -62,7 +62,7 @@ def variant(inst, rng, strength=1.0):
     return out
 
 
-def augment_bank(bank, rng, per_instance=10, target_min=40, cap=200, strength=1.0):
+def augment_bank(bank, rng, per_instance=10, target_min=40, cap=200, strength=1.0, bend=True):
     """Add variants so every glyph has at least `target_min` instances (up to `cap`).
     Glyphs with many real instances get a couple of variants each; rare ones get `per_instance`."""
     out = {}
@@ -74,7 +74,7 @@ def augment_bank(bank, rng, per_instance=10, target_min=40, cap=200, strength=1.
         for u in real:
             for _ in range(n_var):
                 if len(new) >= cap: break
-                new.append(variant(u, rng, strength))
+                new.append(variant(u, rng, strength, bend))
         out[c] = new
     return out
 
