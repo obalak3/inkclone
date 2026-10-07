@@ -131,15 +131,39 @@ class Page:
             prev_kind = kind
         newpage(); return pages
 
-    def render(self, pages, out_prefix, dpi=300):
+    def render(self, pages, out_prefix, dpi=300, vector=True):
         import pymupdf
-        doc = pymupdf.open()
+        doc = pymupdf.open(); vdoc = pymupdf.open() if vector else None
         for n, st in enumerate(pages):
             img = render_strokes(st, (PAGE_W, PAGE_H), dpi=dpi)
             pix = pymupdf.Pixmap(pymupdf.csRGB, img.shape[1], img.shape[0], np.ascontiguousarray(img).tobytes(), False)
             pix.save(f"{out_prefix}_p{n+1}.png")
             pg = doc.new_page(width=PAGE_W, height=PAGE_H); pg.insert_image(pg.rect, pixmap=pix)
-        doc.save(out_prefix + ".pdf"); return len(pages)
+            if vector: write_vector_page(vdoc.new_page(width=PAGE_W, height=PAGE_H), st)
+        doc.save(out_prefix + ".pdf")
+        if vector: vdoc.save(out_prefix + ".vector.pdf")
+        return len(pages)
+
+
+def write_vector_page(page, strokes, color=(0.12, 0.11, 0.11)):
+    """Each stroke becomes one filled ribbon outline (the way GoodNotes exports ink), so the
+    PDF is real vector ink with the per-sample pen width preserved."""
+    import pymupdf
+    shape = page.new_shape()
+    for s in strokes:
+        if len(s) < 2:
+            continue
+        P = s[:, :2]; w = np.maximum(s[:, 2], 0.15) / 2
+        d = np.gradient(P, axis=0); nrm = np.hypot(d[:, 0], d[:, 1]); nrm[nrm < 1e-9] = 1
+        n = np.column_stack([-d[:, 1], d[:, 0]]) / nrm[:, None]
+        left = P + n * w[:, None]; right = P - n * w[:, None]
+        poly = np.vstack([left, right[::-1]])
+        # tiny round-ish caps: a few points around each end
+        shape.draw_polyline([pymupdf.Point(float(x), float(y)) for x, y in poly])
+        shape.finish(color=None, fill=color, closePath=True)
+        for k in (0, len(P) - 1):
+            shape.draw_circle(pymupdf.Point(float(P[k, 0]), float(P[k, 1])), float(w[k])); shape.finish(color=None, fill=color)
+    shape.commit()
 
 
 if __name__ == "__main__":

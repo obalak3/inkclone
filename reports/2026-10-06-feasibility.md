@@ -63,3 +63,10 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - Joins between assembled letters at measured pair rates (v7): little visible effect; kept, enabled.
 - Root cause of "missing letters" in assembled words: mislabeled chunks (cutter put a run boundary at the wrong pen-up, so e.g. an "ng" chunk was really just "g"). Fix: geometric plausibility vs label (width ~ sum of letter widths, extents ~ union of letter extents) on chunks, letters, words. Dropped 298/397/173. Zoom before/after: `reports/joins_zoom.png`, per-unit view `reports/unit_debug.png`.
 - Page v8: `reports/page_set05_v8_p1.png`.
+
+## Evaluation artefacts (~20:05)
+
+- `reports/side_by_side_hw5.png`: real HW5 page 1 (left) vs generated from set05.pdf (right), equal scale. Letterforms comparable; LAYOUT differs: the real page is two-column (pseudocode left, condensed Why/Time notes right at ~0.8x size), smaller x-height, far more whitespace. Generated is single column, full text, larger.
+- `reports/pick_the_fake.png` + sealed `pick_the_fake_KEY.txt`: 24 word crops, 12 real / 12 assembled. Author's own read: ~5 fakes obvious (garbled), ~7 plausible.
+- Vector export: `page_set05_eval.vector.pdf` (one filled ribbon per stroke, 4,341 paths on p1), opens as real ink.
+- Next: two-column HW layout (code left, notes right, smaller), body x-height matched to HW5 (~3.6pt).
