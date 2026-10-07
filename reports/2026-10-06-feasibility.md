@@ -110,3 +110,10 @@ Open question: target documents are math or prose? Math needs its own layout + s
 1. Pick-the-fake score and what gives the fakes away (`reports/pick_the_fake.png`, key in `pick_the_fake_KEY.txt`).
 2. Vector PDF import into GoodNotes (`out/set05_handwritten.vector.pdf`).
 3. Data: prose/heading-rich exports (whole-word coverage, header register), one line of spaced digits (4, 5, 6).
+
+## Pick-the-fake result #1 and the spelling bug (2026-10-07 morning)
+
+- Writer caught 11/12 fakes (missed "grade"), and called 3 of his own words fake (Model, distance, answer). Assembled words clearly fail.
+- His tell: misspellings (Dstaune, witten, drected, matri). Per-unit view (`reports/unit_debug_misspell.png`): the chunks used were mislabeled strokes that passed the geometric plausibility check (an "nc" that is a flat squiggle, a "te" that is a dot and a hook). Mean template score hid one bad letter.
+- Fix: strict quality tier. Keep only the best 40% of letters by template score (<= 0.157) and only chunks whose WORST letter passes. Chunks 729 -> 58, letters 3458 -> 1619. `reports/misspell_after.png`: all four words now spelled correctly; "Model" still bad.
+- Trade-off: assembled words are now mostly letter-by-letter (more "printed" than his real semi-joined hand) but legible and in his letterforms. New pick-the-fake sheet (seed 21) regenerated for a retest.

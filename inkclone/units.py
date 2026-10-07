@@ -103,7 +103,7 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
     for c, insts in L.items():
         for u in insts: u["score"] = score(c, u["pieces"])
     # word instances: mean letter score over the word's segmentation
-    word_scores = []; chunk_scores = {}
+    word_scores = []; chunk_scores = {}; chunk_worst_scores = {}
     for w, seg in zip(words, segs):
         if not seg: continue
         fr = word_frame(w["strokes"], seg)
@@ -133,6 +133,7 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
             if len(run) < 2: continue
             chars = "".join(seg[k]["char"] for k in run); scs = [per_char[k] for k in run if per_char[k] is not None]
             chunk_scores[((w["source"], w["page"], w["text"]), chars, run[0])] = float(np.mean(scs)) if scs else None
+            chunk_worst_scores[((w["source"], w["page"], w["text"]), chars, run[0])] = float(np.max(scs)) if scs else None
     by_src = {src: sc for _, src, sc in word_scores}
     vals = np.array([sc for _, _, sc in word_scores if sc is not None]); cut = float(np.quantile(vals, 0.85))
     dropped = 0
@@ -154,6 +155,23 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
         if kept: C[t] = kept
         else: del C[t]
     report['_chunks'] = cdrop
+    # strict quality tier: keep only the best 40% of letters by template score, and only chunks whose
+    # WORST letter would pass that bar (mislabeled chunks hide a bad letter behind a good mean)
+    letter_scores = np.array([u["score"] for v in L.values() for u in v if u.get("score") is not None])
+    strict = float(np.quantile(letter_scores, 0.40)) if len(letter_scores) else 1.0
+    for t, insts in list(L.items()):
+        kept = [u for u in insts if u.get("score") is not None and u["score"] <= strict]
+        if len(kept) >= 2: L[t] = kept           # rare letters keep what they have
+    chunk_worst = {}
+    for (src, chars, run0), sc in list(chunk_scores.items()): pass
+    for t, insts in list(C.items()):
+        kept = []
+        for u in insts:
+            worst = chunk_worst_scores.get((u["src"], t, u["run0"]))
+            if worst is not None and worst <= strict: kept.append(u)
+        if kept: C[t] = kept
+        else: del C[t]
+    report['_strict'] = (strict, sum(map(len, L.values())), sum(map(len, C.values())))
     report['_words'] = tuple(wrep) + (dropped, cut)
     return dict(W), dict(C), dict(L), report
 
@@ -203,6 +221,7 @@ if __name__ == "__main__":
     print("letter extents (top,bottom in xh):", {c: (round(a, 2), round(b, 2)) for c, (a, b) in sorted(letter_ext.items()) if c in "aeghlpt"})
     print(f"words: {sum(map(len, W.values()))} instances / {len(W)} distinct | chunks: {sum(map(len, C.values()))} / {len(C)} | letters kept: {sum(map(len, L.values()))}")
     print("chunks dropped for template mismatch:", rep.pop("_chunks"))
+    st_ = rep.pop("_strict"); print(f"strict tier: letter score <= {st_[0]:.3f}; letters {st_[1]}, chunks {st_[2]}")
     wr = rep.pop("_words"); print(f"word filters: {wr[0]} -> {wr[1]} (outliers) -> {wr[1]-wr[2]} (template mismatch, cut {wr[3]:.2f})")
     nw = sum(1 for v in L.values() for i in v if i.get("whole")); print(f"letters that are complete strokes (no cut): {nw}/{sum(map(len, L.values()))}")
     print("capitals kept:", " ".join(f"{c}:{b}" for c, (a, b) in sorted(rep.items()) if c.isupper()))
