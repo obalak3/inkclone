@@ -82,3 +82,9 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - Seed cleaner keeps the best mutual pair when a class would be emptied. Digit grid `reports/digits_grid.png`: 0/1/2/7/8 clean, 3 and 9 a few, 4/5/6 unusable (mislabeled or poisoned) and removed from the bank. One written line of spaced digits would fix these.
 - `inkclone/drift.py`: measured from 1,030 line pairs / 1,168 lines / 951 margins: pitch ratio sd 0.33 (includes paragraph gaps), baseline slope sd 0.039 pt/pt (includes math noise), margin sd 7.6pt (includes indents). Applied at a fraction with clamps: pitch N(1, 0.08) in [0.92, 1.18], slope capped ±0.012, margin jitter sd 2.7pt. First attempt at full measured variance caused line collisions.
 - Code pitch 3.6 -> 3.9 xh. ')' mirrored from '(' again (harvested ')' were poor).
+
+## CLI + HW5 from typed source (~21:20)
+
+- `python -m inkclone.cli build|render`. Full build 2:18.
+- HW5 labeled from set05 text via fuzzy alignment: 11 -> 138 words. Header words now exist whole; "1) Shortest Paths with Few Steps" renders from the writer's own header-size instances.
+- Harvest is seed-sensitive run to run ('-' and '7' dropped this build). Needs stabilising (fixed seed set or union across runs).

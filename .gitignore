@@ -6,3 +6,4 @@ data/
 *.pdf
 !reports/*.png
 .DS_Store
+out/
