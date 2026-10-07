@@ -90,6 +90,7 @@ def label_pages(pages, source_text):
     per_page_boxes = {}
     for ids, tj in pairs:
         tok = tokens[tj]; ocr = "".join(boxes[i]["text"] for i in ids)
+        if len(ocr.strip()) > 1.4 * len(tok) + 1: continue  # the box holds more than this word (e.g. "1)Shortest"): do not label it
         # keep trailing punctuation in the label only if the OCR box also captured it
         label = tok if (tok[-1] in PUNCT and ocr[-1:] in PUNCT) else tok.rstrip(PUNCT)
         label = label.lstrip(PUNCT)

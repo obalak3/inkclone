@@ -86,7 +86,9 @@ class Synth2:
 
     def word(self, text, used):
         src = "word"
-        cands = self.W.get(text) or (self.lower.get(text.lower()) if text.islower() else None)
+        cands = self.W.get(text)
+        if not cands and text.islower():  # lowercase token: only lowercase instances (never a capitalised one)
+            cands = [u for u in self.lower.get(text.lower(), []) if u["text"].islower()] or None
         if cands:
             fresh = [c for c in cands if id(c) not in used] or cands
             u = self.pick_by_quality(fresh); used.add(id(u)); pieces, w = self.conform(u["pieces"], u); return pieces, w, src
