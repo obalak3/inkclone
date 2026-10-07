@@ -23,6 +23,13 @@ class Page:
         self.missing = collections.Counter()
         self.s.pen_target = 0.49  # the writer's measured pen width in pt
         self.doc_slant = max(-9.0, min(0.0, self.rng.gauss(self.s.stats.get("slant_deg_median", -4.4), 1.5)))
+        self.drift = self.s.stats.get("drift", {"pitch_ratio_sd": 0.12, "baseline_slope_sd": 0.01, "baseline_slope_median": 0.0, "margin_sd_pt": 2.0})
+
+    def pitch(self):
+        return max(0.92, min(1.18, self.rng.gauss(1.0, 0.25 * self.drift["pitch_ratio_sd"])))  # measured sd includes paragraph gaps; keep it gentle
+
+    def margin_jitter(self):
+        return self.rng.gauss(0, 0.35 * self.drift["margin_sd_pt"])  # measured sd includes indentation noise; use a third
 
     # ---- glyph sources -------------------------------------------------------------
     PUNCT_FROM_PROSE = set(";:'?!")  # commas/periods/hyphens from prose cuts are too dirty; use the sheet bank
@@ -37,7 +44,7 @@ class Page:
 
     def symbol(self, c):
         if c == ">" and not self.sym.get(">") and self.sym.get("<"): return self.mirror(self.rng.choice(self.sym["<"]))
-        if c == ")" and len(self.sym.get(")", [])) < 5 and len(self.sym.get("(", [])) >= 5: return self.mirror(self.rng.choice(self.sym["("][:30]))
+        if c == ")" and len(self.sym.get(")", [])) < 40 and len(self.sym.get("(", [])) >= 5: return self.mirror(self.rng.choice(self.sym["("][:30]))
         if c == "]" and len(self.sym.get("]", [])) < 5 and len(self.sym.get("[", [])) >= 5: return self.mirror(self.rng.choice(self.sym["["][:20]))
         if c == "0" and not self.sym.get("0") and self.s.L.get("o"): return self.s.pick_by_quality([u for u in self.s.L["o"] if u.get("whole")] or self.s.L["o"])
         if c in self.PUNCT_FROM_PROSE and self.s.L.get(c):
@@ -91,13 +98,15 @@ class Page:
     # ---- layout --------------------------------------------------------------------
     def line_strokes(self, text, xh, x0, baseline, used, max_w=None):
         """Lay tokens along a baseline. Returns (strokes in pt, leftover tokens if wrapped)."""
+        x0 = x0 + self.margin_jitter()
         out, x = [], x0; toks = text.split(); wg = self.s.stats.get("word_gap_xh_median", 2.0)
         self.s.slant_target = max(-12.0, min(2.0, self.doc_slant + self.rng.gauss(0, 1.8)))  # one slant per line, drifting around the document's
         xh = xh * self.rng.uniform(0.95, 1.05)  # size mood per line
+        slope = max(-0.012, min(0.012, self.rng.gauss(self.drift["baseline_slope_median"], 0.5 * self.drift["baseline_slope_sd"])))  # baseline wander, capped at ~5pt per line
         for n, tok in enumerate(toks):
             st, w = self.token(tok, used); jit = self.rng.uniform(0.95, 1.05)
             if max_w and n > 0 and x + w * xh * jit > x0 + max_w: return out, toks[n:]
-            by = baseline + self.rng.uniform(-0.12, 0.12) * xh
+            by = baseline + self.rng.uniform(-0.12, 0.12) * xh + slope * (x - x0)
             for p in st: q = p.copy(); q[:, :2] *= xh * jit; q[:, 0] += x; q[:, 1] += by; out.append(q)
             x += w * xh * jit + wg * xh * self.rng.uniform(0.7, 1.25)
         return out, []
@@ -120,7 +129,7 @@ class Page:
         """wrap a paragraph; returns (strokes, new y)."""
         out, rest = [], text
         while rest:
-            st, left = self.line_strokes(rest, xh, x0, y + 1.8 * xh, used, max_w=max_w); out += st; y += 4.0 * xh
+            st, left = self.line_strokes(rest, xh, x0, y + 1.8 * xh, used, max_w=max_w); out += st; y += 4.0 * xh * self.pitch()
             rest = " ".join(left) if left else ""
         return out, y
 
@@ -148,7 +157,7 @@ class Page:
                     need(3.6 * xh)
                     if y == MARGIN_T: y_top = y; code_strokes = []
                     x0 = MARGIN_L + 3.2 * xh * ln["indent"] + (0 if ln["indent"] == 0 else 0.6 * xh)
-                    st, _ = self.line_strokes(ln["text"], xh, x0, y + 1.8 * xh, used); cur += st; code_strokes += st; y += 3.6 * xh
+                    st, _ = self.line_strokes(ln["text"], xh, x0, y + 1.8 * xh, used); cur += st; code_strokes += st; y += 3.9 * xh * self.pitch()
                 y_code_end = y
                 if self.two_column and sec["notes"] and code_strokes:
                     code_right = max(p[:, 0].max() for p in code_strokes)

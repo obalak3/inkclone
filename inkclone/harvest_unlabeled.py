@@ -55,6 +55,10 @@ def clean_seeds(S):
             own = [np.linalg.norm(f - g) / np.sqrt(len(f)) for j, (g, _) in enumerate(lst) if j != k]
             other = [np.linalg.norm(f - g) / np.sqrt(len(f)) for cc, l2 in S.items() if cc != c for g, _ in l2]
             if not own or not other or min(own) <= min(other) + 0.02: keep.append((f, u))
+        if not keep and len(lst) >= 2 and not c.startswith("L:"):
+            # keep the two most mutually similar seeds rather than losing the class
+            best = min(((np.linalg.norm(a[0] - b[0]), i, j) for i, a in enumerate(lst) for j, b in enumerate(lst) if i < j))
+            keep = [lst[best[1]], lst[best[2]]]
         if keep: out[c] = keep
     return out
 

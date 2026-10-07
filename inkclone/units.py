@@ -194,6 +194,10 @@ if __name__ == "__main__":
             if kept: bank_[t] = kept
             else: del bank_[t]
     print("implausible units dropped:", drop)
+    caps = [letter_ext[c] for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if c in letter_ext]
+    if caps:
+        cap_ext = (float(np.median([e[0] for e in caps])), float(np.median([e[1] for e in caps])))
+        for dgt in "0123456789": letter_ext.setdefault(dgt, cap_ext)  # digits sit at capital height
     pickle.dump({"words": W, "chunks": C, "letters": L, "letter_h": letter_h, "letter_ext": letter_ext}, open("data/derived/units.pkl", "wb"))
     print("letter extents (top,bottom in xh):", {c: (round(a, 2), round(b, 2)) for c, (a, b) in sorted(letter_ext.items()) if c in "aeghlpt"})
     print(f"words: {sum(map(len, W.values()))} instances / {len(W)} distinct | chunks: {sum(map(len, C.values()))} / {len(C)} | letters kept: {sum(map(len, L.values()))}")

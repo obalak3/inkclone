@@ -58,7 +58,7 @@ class Synth2:
         pieces = [p.copy() for p in pieces]
         t = u.get("text", "")
         ext = [self.letter_ext[c] for c in t if c in self.letter_ext]
-        if ext and t.isalpha():
+        if ext and (t.isalpha() or t.isdigit()):
             exp_top, exp_bot = min(e[0] for e in ext), max(e[1] for e in ext)
             top = min(p[:, 1].min() for p in pieces); bot = max(p[:, 1].max() for p in pieces)
             if bot - top > 1e-3:

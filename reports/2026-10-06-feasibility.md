@@ -76,3 +76,9 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - Measured HW x-height 3.65-3.9pt (was rendering at 4.2). Body now 3.75, header 6.6.
 - `page.py` sections: header, intro prose full width, code left, notes right at 0.8x starting level with the code; column split measured from the actual code width, fallback to notes-below when code is wide; overflow notes continue below.
 - `reports/side_by_side_hw5.png` regenerated: structure now matches the real HW5 page (code left, small notes right, one page for the content).
+
+## Digits, drift (~20:55)
+
+- Seed cleaner keeps the best mutual pair when a class would be emptied. Digit grid `reports/digits_grid.png`: 0/1/2/7/8 clean, 3 and 9 a few, 4/5/6 unusable (mislabeled or poisoned) and removed from the bank. One written line of spaced digits would fix these.
+- `inkclone/drift.py`: measured from 1,030 line pairs / 1,168 lines / 951 margins: pitch ratio sd 0.33 (includes paragraph gaps), baseline slope sd 0.039 pt/pt (includes math noise), margin sd 7.6pt (includes indents). Applied at a fraction with clamps: pitch N(1, 0.08) in [0.92, 1.18], slope capped ±0.012, margin jitter sd 2.7pt. First attempt at full measured variance caused line collisions.
+- Code pitch 3.6 -> 3.9 xh. ')' mirrored from '(' again (harvested ')' were poor).
