@@ -9,6 +9,12 @@ if __name__ == "__main__":
         h = H.get(c, [])[:KEEP.get(c, 0)]
         sh = [u for u in sheet.get(c, []) if u.get("single")] or sheet.get(c, [])
         out[c] = (h + sh) if len(h) >= 5 else (sh + h)   # harvested first when there are enough of them
+    # a zero is a closed loop: drop open U/V shapes that the harvest let through
+    import numpy as np
+    def closed(u):
+        st = max(u["pieces"], key=len); gap = np.hypot(*(st[0, :2] - st[-1, :2])); h = st[:, 1].max() - st[:, 1].min()
+        return gap < 0.45 * h
+    if "0" in out: out["0"] = [u for u in out["0"] if closed(u)] or out["0"]
     for bad in ("4", "5", "6"):  # sheet instances for these are mislabeled or too few; better a gap than a wrong digit
         out.pop(bad, None)
     pickle.dump(out, open("data/derived/symbols_final.pkl", "wb"))

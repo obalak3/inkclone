@@ -29,7 +29,7 @@ def render(src, out=None, seed=1):
     os.makedirs("out", exist_ok=True)
     out = out or os.path.join("out", os.path.splitext(os.path.basename(src))[0] + "_handwritten")
     run("inkclone.page", src, out, str(seed))
-    print("written:", out + ".pdf", out + ".vector.pdf", "and", out + "_p*.png")
+    print("written:", out + ".pdf (vector ink)", "and previews", out + "_p*.png")
 
 
 if __name__ == "__main__":

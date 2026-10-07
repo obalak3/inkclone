@@ -3,8 +3,8 @@
 Learn one person's handwriting from GoodNotes exports and render typed documents in it.
 
 Input: GoodNotes PDF exports (Apple Pencil ink arrives as vector outlines, plus GoodNotes'
-invisible OCR text layer). Output: handwritten pages as PNG, as a raster PDF, and as a
-vector PDF (one filled ribbon per stroke, pen width preserved) that opens as ink.
+invisible OCR text layer). Output: a vector-ink PDF (one filled ribbon per stroke, pen width preserved, opens as ink,
+sharp at any zoom) plus PNG previews rasterised from it.
 
 ## Usage
 
@@ -12,7 +12,7 @@ vector PDF (one filled ribbon per stroke, pen width preserved) that opens as ink
     cp "<GoodNotes export>.pdf" data/raw/            # any number of notebooks
     cp "<typed source>.txt|.pdf" data/sources/       # optional: exact text of a page you copied (see below)
     .venv/bin/python -m inkclone.cli build           # ~2.5 min for 90 pages: all banks rebuilt
-    .venv/bin/python -m inkclone.cli render typed.pdf   # -> out/typed_handwritten{.pdf,.vector.pdf,_pN.png}
+    .venv/bin/python -m inkclone.cli render typed.pdf   # -> out/typed_handwritten.pdf (vector ink) + _pN.png previews
 
 Typed sources: if `data/sources/<notebook name>.txt` exists, that notebook is labeled by fuzzy
 alignment of OCR word positions to the source text instead of trusting OCR text. Use it for pages

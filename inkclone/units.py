@@ -159,9 +159,14 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
     # WORST letter would pass that bar (mislabeled chunks hide a bad letter behind a good mean)
     letter_scores = np.array([u["score"] for v in L.values() for u in v if u.get("score") is not None])
     strict = float(np.quantile(letter_scores, 0.40)) if len(letter_scores) else 1.0
+    loose = {t: list(v) for t, v in L.items()}  # pre-strict pool, kept for rare letters
     for t, insts in list(L.items()):
         kept = [u for u in insts if u.get("score") is not None and u["score"] <= strict]
-        if len(kept) >= 2: L[t] = kept           # rare letters keep what they have
+        # shape sanity for a few letters whose mis-cuts have a characteristic look
+        if t == "k": kept = [u for u in kept if u["width"] >= 0.55 and len(u["pieces"]) >= 1 and u["height"] >= 1.6]
+        if len(kept) >= 4: L[t] = kept
+        elif len(kept) >= 2 and len(loose[t]) < 6: L[t] = kept
+        else: L[t] = sorted(loose[t], key=lambda u: u.get("score") if u.get("score") is not None else 9)[:max(4, len(loose[t]) // 3)]
     chunk_worst = {}
     for (src, chars, run0), sc in list(chunk_scores.items()): pass
     for t, insts in list(C.items()):

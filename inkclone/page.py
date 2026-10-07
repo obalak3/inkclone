@@ -224,16 +224,14 @@ class Page:
         newpage(); return pages
 
     def render(self, pages, out_prefix, dpi=300, vector=True):
+        """Main output is vector ink (<prefix>.pdf). PNG previews are rasterised from the vector pages."""
         import pymupdf
-        doc = pymupdf.open(); vdoc = pymupdf.open() if vector else None
-        for n, st in enumerate(pages):
-            img = render_strokes(st, (PAGE_W, PAGE_H), dpi=dpi)
-            pix = pymupdf.Pixmap(pymupdf.csRGB, img.shape[1], img.shape[0], np.ascontiguousarray(img).tobytes(), False)
-            pix.save(f"{out_prefix}_p{n+1}.png")
-            pg = doc.new_page(width=PAGE_W, height=PAGE_H); pg.insert_image(pg.rect, pixmap=pix)
-            if vector: write_vector_page(vdoc.new_page(width=PAGE_W, height=PAGE_H), st)
-        doc.save(out_prefix + ".pdf")
-        if vector: vdoc.save(out_prefix + ".vector.pdf")
+        vdoc = pymupdf.open()
+        for st in pages:
+            write_vector_page(vdoc.new_page(width=PAGE_W, height=PAGE_H), st)
+        vdoc.save(out_prefix + ".pdf")
+        for n, pg in enumerate(pymupdf.open(out_prefix + ".pdf")):
+            pg.get_pixmap(dpi=dpi).save(f"{out_prefix}_p{n+1}.png")
         return len(pages)
 
 
