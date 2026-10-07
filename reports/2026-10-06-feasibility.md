@@ -130,3 +130,5 @@ Open question: target documents are math or prose? Math needs its own layout + s
 ## Variance + correctness pass (2026-10-07 evening, after writer review of a notes block)
 - Writer's findings: identical "after" pasted twice in one block (the font behaviour he rejected), "er" in it illegible, "stopping" rendered "stouping".
 - Causes: whole words had no variants and were reused; "pp" chunk from "Suppose" was not a pp. Fixes: word variants (1,211 -> 4,538), worst-letter filter on words, no same-instance reuse within a page, chunks disabled entirely (assembly = curated letters only), word-level blocklist (the one bad "after").
+- Joins disabled: the join step swapped in mid-stroke-cut letters that bypass curation (extra stroke in "after", an "x" on "rounds"). Assembly = curated letters + variants only.
+- Word-level blocklist entries for the two HW5 words whose OCR boxes swallowed neighbours ("after", "rounds×"); worst-letter rule for words tightened to 1.1x the cut (word bank 1,390 -> 929 real instances, 318 distinct, plus variants).

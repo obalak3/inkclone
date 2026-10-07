@@ -16,7 +16,7 @@ class Synth2:
         for p_, n in pc.items():
             a = self.out_of.setdefault(p_[0], [0, 0]); a[0] += jr[p_] * n; a[1] += n
             b = self.into.setdefault(p_[1], [0, 0]); b[0] += jr[p_] * n; b[1] += n
-        self.join_enabled = True
+        self.join_enabled = False  # joined-variant letters are cut mid-stroke and bypass curation; off until cuts are trustworthy
 
     def join_prob(self, a, b):
         pc, jr = self.stats["pair_count"], self.stats["join_rate"]

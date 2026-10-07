@@ -142,7 +142,7 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
         for u in insts:
             u["score"] = by_src.get(u["src"]); u["worst"] = worst_by_src.get(u["src"])
             if u["score"] is not None and u["score"] > cut: dropped += 1
-            elif u["worst"] is not None and u["worst"] > 2.2 * cut: dropped += 1   # one illegible letter spoils the word
+            elif u["worst"] is not None and u["worst"] > 1.1 * cut: dropped += 1   # one illegible letter spoils the word
             else: kept.append(u)
         if kept: W[t] = kept
         else: del W[t]
