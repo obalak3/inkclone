@@ -88,3 +88,9 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - `python -m inkclone.cli build|render`. Full build 2:18.
 - HW5 labeled from set05 text via fuzzy alignment: 11 -> 138 words. Header words now exist whole; "1) Shortest Paths with Few Steps" renders from the writer's own header-size instances.
 - Harvest is seed-sensitive run to run ('-' and '7' dropped this build). Needs stabilising (fixed seed set or union across runs).
+
+## Generalisation test (~21:50)
+
+- Harvest union across builds (keyed by source stroke) so classes persist.
+- Parser generalised: any short bold line at body size+ is a header ("Question 1"), front matter only on page 1, standalone equation lines -> `math` display lines. Verified on set05 and on an unseen typed HW (`other_HW3`, 7 questions): full page renders, headers and prose right.
+- Limits found: LaTeX fractions come out as separate numerator/denominator lines; blackboard-bold ℤ renders as Z; hyphen bank had collapsed -> hyphen now taken from one stroke of an '=' when the bank is thin.

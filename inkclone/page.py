@@ -44,6 +44,11 @@ class Page:
 
     def symbol(self, c):
         if c == ">" and not self.sym.get(">") and self.sym.get("<"): return self.mirror(self.rng.choice(self.sym["<"]))
+        if c == "-" and len(self.sym.get("-", [])) < 5 and len(self.sym.get("=", [])) >= 5:
+            eq = self.rng.choice(self.sym["="][:40]); bar = max(eq["pieces"], key=len).copy()
+            bar[:, 1] -= bar[:, 1].mean() - (-0.45)  # a hyphen sits a little under mid x-height
+            bar[:, 0] -= bar[:, 0].min()
+            return {"text": "-", "pieces": [bar], "width": float(bar[:, 0].max()), "height": float(bar[:, 1].max() - bar[:, 1].min()), "slant": eq.get("slant"), "pen": eq.get("pen")}
         if c == ")" and len(self.sym.get(")", [])) < 40 and len(self.sym.get("(", [])) >= 5: return self.mirror(self.rng.choice(self.sym["("][:30]))
         if c == "]" and len(self.sym.get("]", [])) < 5 and len(self.sym.get("[", [])) >= 5: return self.mirror(self.rng.choice(self.sym["["][:20]))
         if c == "0" and not self.sym.get("0") and self.s.L.get("o"): return self.s.pick_by_quality([u for u in self.s.L["o"] if u.get("whole")] or self.s.L["o"])
@@ -122,11 +127,13 @@ class Page:
                 continue
             if ln["kind"] == "code": cur["code"].append(ln)
             elif cur["code"]: cur["notes"].append(ln)
-            else: cur["intro"].append(ln)
+            else: cur["intro"].append(ln)  # math lines travel with the prose and are laid out as single lines
         return secs
 
-    def prose_block(self, text, xh, x0, y, max_w, used):
-        """wrap a paragraph; returns (strokes, new y)."""
+    def prose_block(self, text, xh, x0, y, max_w, used, math=False):
+        """wrap a paragraph; returns (strokes, new y). Math display lines are indented and never wrapped."""
+        if math:
+            st, _ = self.line_strokes(text, xh, x0 + 6 * xh, y + 1.8 * xh, used); return st, y + 4.2 * xh * self.pitch()
         out, rest = [], text
         while rest:
             st, left = self.line_strokes(rest, xh, x0, y + 1.8 * xh, used, max_w=max_w); out += st; y += 4.0 * xh * self.pitch()
@@ -149,7 +156,7 @@ class Page:
                 need(3.2 * self.header_xh + 8 * xh)
                 st, _ = self.line_strokes(sec["header"], self.header_xh, MARGIN_L, y + 2.2 * self.header_xh, used); cur += st; y += 3.6 * self.header_xh
             for ln in sec["intro"]:
-                need(4 * xh); st, y = self.prose_block(ln["text"], xh, MARGIN_L, y, full_w, used); cur += st
+                need(4 * xh); st, y = self.prose_block(ln["text"], xh, MARGIN_L, y, full_w, used, math=(ln["kind"] == "math")); cur += st
             if sec["code"]:
                 need(3.6 * xh * min(len(sec["code"]), 4))
                 y_top = y; code_strokes = []
@@ -169,7 +176,7 @@ class Page:
                         y = max(y_code_end, yn)
                         sec = dict(sec, notes=pending)  # anything that did not fit goes below, full width
             for ln in sec["notes"]:
-                need(4 * xh); st, y = self.prose_block(ln["text"], xh, MARGIN_L, y, full_w, used); cur += st
+                need(4 * xh); st, y = self.prose_block(ln["text"], xh, MARGIN_L, y, full_w, used, math=(ln["kind"] == "math")); cur += st
         newpage(); return pages
 
     def render(self, pages, out_prefix, dpi=300, vector=True):

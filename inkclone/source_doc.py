@@ -14,7 +14,7 @@ GREEK = {"∞": "∞", "≤": "≤", "≥": "≥", "∈": "∈", "⇒": "⇒", "
 
 def parse(path):
     doc = pymupdf.open(path); lines = []
-    for page in doc:
+    for pno, page in enumerate(doc):
         d = page.get_text("dict"); spans = []
         for b in d["blocks"]:
             for l in b.get("lines", []):
@@ -50,22 +50,28 @@ def parse(path):
             merged.append({"x": sps[0]["bbox"][0], "y": g["y"], "size": size, "bold": bold, "text": re.sub(r"\s+", " ", txt).strip(), "font": main["font"]})
         body_x = min(r["x"] for r in merged if not r["bold"]) if merged else 0
         body_size = sorted(r["size"] for r in merged)[len(merged) // 2]
-        in_code = False; code_x0 = None
+        in_code = False; code_x0 = None; n_headers = 0
         for i, r in enumerate(merged):
             t = re.sub(r"\s+", " ", r["text"]).strip()
             t = "".join(GREEK.get(c, c) for c in t)
-            if r["size"] > 1.3 * body_size and r["bold"] and i < 3 and not re.match(r"^\d+\s", t):
+            nwords = len(t.split())
+            is_short_bold = r["bold"] and nwords <= 8 and r["size"] >= 0.95 * body_size
+            if pno == 0 and i == 0 and r["size"] > 1.3 * body_size and r["bold"] and not re.match(r"^\d+\s", t):
                 lines.append({"kind": "title", "indent": 0, "text": t}); continue
-            if i < 4 and not r["bold"] and r["size"] <= body_size * 1.05 and r["x"] > body_x + 80:
+            if pno == 0 and n_headers == 0 and i < 4 and nwords <= 8 and not is_short_bold and len(t) < 60:
                 lines.append({"kind": "meta", "indent": 0, "text": t}); continue
-            if r["bold"] and re.match(r"^\d+\s+\S", t):
-                lines.append({"kind": "header", "indent": 0, "text": re.sub(r"^(\d+)\s+", r"\1) ", t)}); in_code = False; continue
+            if is_short_bold:
+                n_headers += 1; in_code = False
+                lines.append({"kind": "header", "indent": 0, "text": re.sub(r"^(\d+)\s+", r"\1) ", t)}); continue
             if re.match(r"^[A-Z][A-Za-z]+\(.*\)\s*$", t) and r["x"] <= body_x + 2:
                 in_code = True; code_x0 = r["x"]; lines.append({"kind": "code", "indent": 0, "text": t}); continue
             if in_code and r["x"] > code_x0 + 2:
                 lines.append({"kind": "code", "indent": max(1, round((r["x"] - code_x0) / 18)), "text": t}); continue
             in_code = False
             if re.match(r"^\d+$", t): continue  # page number
+            # a standalone equation line: no lowercase word of 3+ letters, indented or centred
+            if not re.search(r"[a-z]{3,}", t) and r["x"] > body_x + 20:
+                lines.append({"kind": "math", "indent": 2, "text": t}); continue
             lines.append({"kind": "prose", "indent": 0, "text": t, "bold_lead": r["bold"]})
     return merge_paragraphs(lines)
 
@@ -76,7 +82,7 @@ def merge_paragraphs(lines):
     out = []; seen_header = False
     for ln in lines:
         if ln["kind"] == "header": seen_header = True
-        if not seen_header and ln["kind"] == "prose": out.append(dict(ln, kind="meta")); continue
+        if not seen_header and ln["kind"] == "prose" and len(ln["text"].split()) <= 8: out.append(dict(ln, kind="meta")); continue
         if ln["kind"] == "prose" and out and out[-1]["kind"] == "prose" and not ln.get("bold_lead"):
             out[-1]["text"] = (out[-1]["text"] + " " + ln["text"]).strip()
         else:

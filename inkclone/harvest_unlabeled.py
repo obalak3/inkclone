@@ -126,5 +126,13 @@ if __name__ == "__main__":
     sym = pickle.load(open("data/derived/symbols.pkl", "rb")); L = pickle.load(open("data/derived/units.pkl", "rb"))["letters"]
     prefixes = [p[:-5] for p in sorted(glob.glob("data/derived/*.json")) if not p.endswith(".words.json")]
     H = harvest(prefixes, sym, L)
-    print("harvested:", {c: len(v) for c, v in sorted(H.items())})
+    # union with earlier harvests (keyed by source stroke) so a rebuild never loses a class it once had
+    import os
+    if os.path.exists("data/derived/symbols_harvested.pkl"):
+        old = pickle.load(open("data/derived/symbols_harvested.pkl", "rb"))
+        for c, insts in old.items():
+            have = {tuple(u["src"]) for u in H.get(c, [])}
+            H.setdefault(c, []).extend(u for u in insts if tuple(u["src"]) not in have)
+            H[c].sort(key=lambda u: u["dist"]); H[c] = H[c][:150]
+    print("harvested (union):", {c: len(v) for c, v in sorted(H.items())})
     pickle.dump(H, open("data/derived/symbols_harvested.pkl", "wb"))
