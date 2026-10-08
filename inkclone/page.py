@@ -286,3 +286,12 @@ def write_vector_page(page, strokes, color=(0.12, 0.11, 0.11)):
         shape.draw_polyline([pymupdf.Point(float(x), float(y)) for x, y in P])
         shape.finish(width=float(np.median(w)), color=color, lineCap=1, lineJoin=1)
     shape.commit()
+
+
+if __name__ == "__main__":
+    import sys
+    from .source_doc import parse
+    src, out = sys.argv[1], sys.argv[2]; seed = int(sys.argv[3]) if len(sys.argv) > 3 else 1
+    pg = Page(seed=seed); lines = parse(src); pages = pg.layout(lines)
+    n = pg.render(pages, out)
+    print(f"{n} page(s) -> {out}.pdf; missing glyphs: {dict(pg.missing.most_common(12))}")
