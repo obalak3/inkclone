@@ -137,3 +137,10 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - Writer's direction: fewer rules, go through every glyph and make sure each is itself. Done over four real-instance grids (lower/upper/digits/symbols): 115 blocklist entries total (keys survive rebuilds). Symbol instances now have unique keys (sheet token + occurrence).
 - Mechanical corrections folded in: lowercase stroke count exact, capitals mode..mode+1; fallbacks (hyphen from '=', slash from '1', ')' from '(') count REAL instances only, so variants can no longer switch them off ("Noochange" cause); j rebuilt with a parametric hook (the g-tail version was flat).
 - Notes block of set05 section 1 now spells every word correctly with varying repeats.
+
+## Stroke quality root causes (2026-10-08 midday)
+Writer reported shaky lines, random dots, scalloped strokes ("es" of Inequalities). Three separate causes, all in reconstruction/export, none in the letters:
+1. Per-piece centerline paired outline points by index; for long ribbon pieces this ran corner-to-corner with a hairpin. Fixed: cap-split + equal-fraction pairing (`extract.loop_centerline`). Pieces oriented by neighbouring centroids, overlaps trimmed, arc-length resampled and smoothed within one pen width. Width from exact ribbon geometry: pen is 0.63-0.72pt, not 0.49.
+2. Vector export built filled offset outlines, which self-intersect when samples are denser than the pen width (spikes, holes). Fixed: stroked polylines, round caps/joins, one width per stroke.
+3. PyMuPDF `finish()` defaults to closePath=True: every stroke got a chord from end back to start (short strokes: "random dots"; long strokes: filled blobs). Fixed with closePath=False. This also made the day's "after" renders misleading, together with a lost `__main__` block that left `cli render` silently writing nothing for ~4 hours.
+Verified on the same "es" at 900 dpi and on the section 1 header next to the real HW5 header.
