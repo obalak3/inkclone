@@ -56,12 +56,37 @@ def loop_centerline(L):
     x, y = L[:, 0], L[:, 1]
     area = 0.5 * abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
     per = np.linalg.norm(np.diff(np.vstack([L, L[:1]]), axis=0), axis=1).sum()
-    w = np.full(len(mid), 2 * area / per if per > 0 else 0.0)
+    # exact ribbon geometry: area = w*L, perimeter = 2L + 2w  ->  w^2 - (per/2) w + area = 0 (smaller root)
+    half = per / 2; disc = half * half - 4 * area
+    wv = (half - math.sqrt(disc)) / 2 if disc > 0 else (2 * area / per if per > 0 else 0.0)
+    w = np.full(len(mid), wv)
     return np.column_stack([mid, w])
 
 
-def stroke_from_path(items):
-    """One PDF path (one pen stroke) -> (m,3) centerline in pen order."""
+def _smooth_resample(S, step=0.1, window_pt=0.5):
+    """Resample a chained centerline by arc length and smooth x/y within ~one pen width.
+    The true pen path under GoodNotes' ribbons is smooth; this removes the piece-joint kinks."""
+    P, w = S[:, :2], S[:, 2]
+    d = np.linalg.norm(np.diff(P, axis=0), axis=1); cum = np.r_[0, np.cumsum(d)]
+    if cum[-1] < 2 * step or len(P) < 4:
+        return S
+    t = np.r_[np.arange(0, cum[-1], step), cum[-1]]
+    Q = np.column_stack([np.interp(t, cum, P[:, 0]), np.interp(t, cum, P[:, 1])]); wq = np.interp(t, cum, w)
+    k = max(3, int(round(window_pt / step)) | 1); pad = k // 2
+    if len(Q) > k:
+        ker = np.ones(k) / k
+        xs = np.convolve(np.r_[np.full(pad, Q[0, 0]), Q[:, 0], np.full(pad, Q[-1, 0])], ker, mode="valid")
+        ys = np.convolve(np.r_[np.full(pad, Q[0, 1]), Q[:, 1], np.full(pad, Q[-1, 1])], ker, mode="valid")
+        Q = np.column_stack([xs, ys]); Q[0], Q[-1] = P[0], P[-1]
+    return np.column_stack([Q, wq])
+
+
+def stroke_from_path(items, overlap_max=0.3):
+    """One PDF path (one pen stroke) -> (m,3) centerline in pen order.
+
+    Consecutive ribbon pieces overlap, so each new piece is trimmed to start where it passes
+    closest to the end of the chain so far (never doubling back), then the chain is resampled
+    and smoothed within one pen width."""
     pieces = [loop_centerline(L) for L in flatten_loops(items)]
     out = []
     for i, P in enumerate(pieces):
@@ -69,20 +94,23 @@ def stroke_from_path(items):
             prev_end = out[-1][-1, :2]
             if math.dist(P[-1, :2], prev_end) < math.dist(P[0, :2], prev_end):
                 P = P[::-1]
+            # trim the overlapping prefix: start just after the point closest to the chain's end
+            dist = np.linalg.norm(P[:, :2] - prev_end, axis=1); j = int(np.argmin(dist))
+            if dist[j] < overlap_max and j < len(P) - 1:
+                P = P[j + 1:]
         elif len(pieces) > 1:
             nxt = pieces[1][:, :2].mean(0)
             if math.dist(P[0, :2], nxt) < math.dist(P[-1, :2], nxt):
                 P = P[::-1]
-        out.append(P)
+        if len(P):
+            out.append(P)
     S = np.vstack(out)
-    # drop near-duplicate consecutive samples where pieces overlap
-    keep = np.r_[True, np.linalg.norm(np.diff(S[:, :2], axis=0), axis=1) > 0.05]
+    keep = np.r_[True, np.linalg.norm(np.diff(S[:, :2], axis=0), axis=1) > 0.02]
     S = S[keep]
-    # pairing noise shows up as width jitter; a short median filter removes it
     if len(S) >= 5:
         from scipy.ndimage import median_filter
         S[:, 2] = median_filter(S[:, 2], size=5, mode='nearest')
-    return S
+    return _smooth_resample(S)
 
 
 def extract_page(page):

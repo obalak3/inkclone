@@ -21,7 +21,7 @@ class Page:
         self.body_xh, self.header_xh = body_xh, header_xh
         self.two_column, self.note_scale, self.col_split = two_column, note_scale, col_split
         self.missing = collections.Counter()
-        self.s.pen_target = 0.49  # the writer's measured pen width in pt
+        self.s.pen_target = self.s.stats.get("pen_width_pt", 0.7)  # the writer's measured pen width in pt
         self.doc_slant = max(-9.0, min(0.0, self.rng.gauss(self.s.stats.get("slant_deg_median", -4.4), 1.5)))
         self.drift = self.s.stats.get("drift", {"pitch_ratio_sd": 0.12, "baseline_slope_sd": 0.01, "baseline_slope_median": 0.0, "margin_sd_pt": 2.0})
 
@@ -244,6 +244,33 @@ class Page:
         return len(pages)
 
 
+def clean_centerline(P, w, step=0.12, window_pt=0.6):
+    """Remove the sub-pen-width zig-zag the extractor leaves where ribbon pieces overlap:
+    resample by arc length, then smooth x/y with a window about one pen width long."""
+    if len(P) < 4:
+        return P, w
+    # drop backtracks: a sample within `r` of any of the last `look` kept samples is a step back onto
+    # path already drawn (overlapping ribbon pieces), not new ink
+    r, look = 0.2, 15; keep = [0]
+    for i in range(1, len(P)):
+        recent = P[keep[-look:]]
+        if np.min(np.linalg.norm(recent - P[i], axis=1)) >= r or i == len(P) - 1:
+            keep.append(i)
+    P, w = P[keep], w[keep]
+    d = np.linalg.norm(np.diff(P, axis=0), axis=1); cum = np.r_[0, np.cumsum(d)]
+    if cum[-1] < step * 2:
+        return P, w
+    t = np.arange(0, cum[-1], step); t = np.r_[t, cum[-1]]
+    Q = np.column_stack([np.interp(t, cum, P[:, 0]), np.interp(t, cum, P[:, 1])]); wq = np.interp(t, cum, w)
+    k = max(1, int(round(window_pt / step)) | 1)  # odd window
+    if len(Q) > k:
+        pad = k // 2; ker = np.ones(k) / k
+        xs = np.convolve(np.r_[np.full(pad, Q[0, 0]), Q[:, 0], np.full(pad, Q[-1, 0])], ker, mode="valid")
+        ys = np.convolve(np.r_[np.full(pad, Q[0, 1]), Q[:, 1], np.full(pad, Q[-1, 1])], ker, mode="valid")
+        Q = np.column_stack([xs, ys]); Q[0], Q[-1] = P[0], P[-1]  # keep the true end points
+    return Q, wq
+
+
 def write_vector_page(page, strokes, color=(0.12, 0.11, 0.11)):
     """Each stroke is drawn as stroked polylines with round caps and joins (the PDF renderer does
     the geometry, so no self-intersecting outlines). The pen width varies along the stroke, so a
@@ -253,9 +280,7 @@ def write_vector_page(page, strokes, color=(0.12, 0.11, 0.11)):
     for s in strokes:
         if len(s) < 2:
             continue
-        P = s[:, :2].copy(); w = np.maximum(s[:, 2], 0.15)
-        if len(P) >= 5:  # light smoothing of centerline jitter from the extractor (3-sample mean, ends kept)
-            Q = P.copy(); Q[1:-1] = (P[:-2] + P[1:-1] + P[2:]) / 3; P = Q
+        P, w = clean_centerline(s[:, :2], np.maximum(s[:, 2], 0.15))
         # runs of near-constant width
         start = 0
         for i in range(1, len(P) + 1):

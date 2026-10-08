@@ -89,7 +89,8 @@ def build(words, segs):
             if inst["ok"]:
                 inst.pop("x0"); inst.pop("x1"); bank[inst["char"]].append(inst)
     all_gaps = np.array([g for v in gaps.values() for g in v])
-    stats = {"join_rate": {p: joins[p] / pairs[p] for p in pairs}, "pair_count": dict(pairs),
+    pen = float(np.median(np.concatenate([s[:, 2] for w in words for s in w["strokes"]])))
+    stats = {"pen_width_pt": pen, "join_rate": {p: joins[p] / pairs[p] for p in pairs}, "pair_count": dict(pairs),
              "global_join_rate": sum(joins.values()) / max(1, sum(pairs.values())),
              "gap_median": float(np.median(all_gaps)), "gap_iqr": [float(np.percentile(all_gaps, 25)), float(np.percentile(all_gaps, 75))],
              "gap_by_pair": {p: float(np.median(v)) for p, v in gaps.items() if len(v) >= 3},
