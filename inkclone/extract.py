@@ -32,35 +32,44 @@ def flatten_loops(items, n=6):
     return loops
 
 
-def loop_centerline(L):
+def loop_centerline(L, n_out=None):
     """Closed ribbon outline (k,2) -> (m,3) array of x, y, width along the piece.
 
-    Tries every rotation offset of the outline and keeps the pairing of opposite
-    points whose summed pair distance is smallest (the across-the-ink pairing).
-    """
+    A piece is a thin capsule: find its two end caps (extreme points along the principal
+    axis), split the outline into the two long sides between them, and pair the sides at
+    equal fractions of their arc length. The midpoints are the pen path, the pair distance
+    the ink width."""
     if math.dist(L[0], L[-1]) < 1e-6:
         L = L[:-1]
     n = len(L)
-    if n < 4:
+    if n < 6:
         c = L.mean(0); return np.array([[c[0], c[1], 0.0]])
-    half = n // 2
-    # all rotations at once: R[k] is the outline starting at point k
-    idx = (np.arange(n)[None, :] + np.arange(n)[:, None]) % n
-    R = L[idx]
-    A, B = R[:, :half], R[:, half:2*half][:, ::-1]
-    k = np.linalg.norm(A - B, axis=2).sum(1).argmin()
-    A, B = A[k], B[k]
-    mid = (A + B) / 2
-    # opposite-point distances overestimate width near the caps and on short loops;
-    # ribbon area / half-perimeter is the robust ink width for the whole piece
+    c = L.mean(0); X = L - c
+    # principal axis
+    cov = X.T @ X; evals, evecs = np.linalg.eigh(cov); axis = evecs[:, np.argmax(evals)]
+    proj = X @ axis; i1, i2 = int(np.argmin(proj)), int(np.argmax(proj))
+    if i1 == i2: cc = L.mean(0); return np.array([[cc[0], cc[1], 0.0]])
+    # the two sides, each from cap i1 to cap i2 (one forwards around the loop, one backwards)
+    idx_f = [(i1 + k) % n for k in range((i2 - i1) % n + 1)]
+    idx_b = [(i1 - k) % n for k in range((i1 - i2) % n + 1)]
+    A, B = L[idx_f], L[idx_b]
+    def by_fraction(P, m):
+        d = np.r_[0, np.cumsum(np.linalg.norm(np.diff(P, axis=0), axis=1))]
+        if d[-1] < 1e-9: return np.repeat(P[:1], m, 0)
+        t = np.linspace(0, d[-1], m); return np.column_stack([np.interp(t, d, P[:, 0]), np.interp(t, d, P[:, 1])])
+    m = n_out or max(4, n // 2)
+    Af, Bf = by_fraction(A, m), by_fraction(B, m)
+    mid = (Af + Bf) / 2; wpair = np.linalg.norm(Af - Bf, axis=1)
+    # width: exact ribbon geometry (area = w*len, perimeter = 2len + 2w), robust against cap effects
     x, y = L[:, 0], L[:, 1]
     area = 0.5 * abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
     per = np.linalg.norm(np.diff(np.vstack([L, L[:1]]), axis=0), axis=1).sum()
-    # exact ribbon geometry: area = w*L, perimeter = 2L + 2w  ->  w^2 - (per/2) w + area = 0 (smaller root)
     half = per / 2; disc = half * half - 4 * area
     wv = (half - math.sqrt(disc)) / 2 if disc > 0 else (2 * area / per if per > 0 else 0.0)
-    w = np.full(len(mid), wv)
-    return np.column_stack([mid, w])
+    # trim the cap regions where the sides converge (pair distance much smaller than the width)
+    keep = wpair > 0.35 * wv if wv > 0 else np.ones(m, bool)
+    if keep.sum() >= 2: mid = mid[keep]
+    return np.column_stack([mid, np.full(len(mid), wv)])
 
 
 def _smooth_resample(S, step=0.1, window_pt=0.5):
@@ -81,29 +90,32 @@ def _smooth_resample(S, step=0.1, window_pt=0.5):
     return np.column_stack([Q, wq])
 
 
-def stroke_from_path(items, overlap_max=0.3):
+def stroke_from_path(items, overlap_max=1.0):
     """One PDF path (one pen stroke) -> (m,3) centerline in pen order.
 
     Consecutive ribbon pieces overlap, so each new piece is trimmed to start where it passes
     closest to the end of the chain so far (never doubling back), then the chain is resampled
     and smoothed within one pen width."""
-    pieces = [loop_centerline(L) for L in flatten_loops(items)]
+    loops = flatten_loops(items)
+    pieces = [loop_centerline(L) for L in loops]
+    cents = np.array([L.mean(0) for L in loops])
     out = []
     for i, P in enumerate(pieces):
+        # orient each piece along the direction of travel given by neighbouring loop centroids
+        # (loop centroids advance monotonically along the pen path; piece ends alone are ambiguous)
+        lo, hi = max(0, i - 1), min(len(cents) - 1, i + 1)
+        v = cents[hi] - cents[lo]
+        if np.linalg.norm(v) > 1e-6 and len(P) > 1 and np.dot(P[-1, :2] - P[0, :2], v) < 0:
+            P = P[::-1]
         if out:
             prev_end = out[-1][-1, :2]
-            if math.dist(P[-1, :2], prev_end) < math.dist(P[0, :2], prev_end):
-                P = P[::-1]
-            # trim the overlapping prefix: start just after the point closest to the chain's end
             dist = np.linalg.norm(P[:, :2] - prev_end, axis=1); j = int(np.argmin(dist))
-            if dist[j] < overlap_max and j < len(P) - 1:
+            if dist[j] < overlap_max:
                 P = P[j + 1:]
-        elif len(pieces) > 1:
-            nxt = pieces[1][:, :2].mean(0)
-            if math.dist(P[0, :2], nxt) < math.dist(P[-1, :2], nxt):
-                P = P[::-1]
         if len(P):
             out.append(P)
+    if not out:
+        return np.zeros((0, 3))
     S = np.vstack(out)
     keep = np.r_[True, np.linalg.norm(np.diff(S[:, :2], axis=0), axis=1) > 0.02]
     S = S[keep]

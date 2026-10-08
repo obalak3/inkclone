@@ -281,15 +281,8 @@ def write_vector_page(page, strokes, color=(0.12, 0.11, 0.11)):
         if len(s) < 2:
             continue
         P, w = clean_centerline(s[:, :2], np.maximum(s[:, 2], 0.15))
-        # runs of near-constant width
-        start = 0
-        for i in range(1, len(P) + 1):
-            if i == len(P) or abs(w[i] - w[start]) > 0.12 * w[start] or i - start >= 40:
-                seg = P[start:i + 1] if i < len(P) else P[start:i]
-                if len(seg) >= 2:
-                    shape.draw_polyline([pymupdf.Point(float(x), float(y)) for x, y in seg])
-                    shape.finish(width=float(np.median(w[start:i])), color=color, lineCap=1, lineJoin=1)
-                elif len(seg) == 1:
-                    shape.draw_circle(pymupdf.Point(float(seg[0, 0]), float(seg[0, 1])), float(w[start]) / 2); shape.finish(color=None, fill=color)
-                start = i
+        # one width per stroke (the pen's pressure variation within a stroke is ~10% and the
+        # round-join scalloping from per-run widths was far more visible than that variation)
+        shape.draw_polyline([pymupdf.Point(float(x), float(y)) for x, y in P])
+        shape.finish(width=float(np.median(w)), color=color, lineCap=1, lineJoin=1)
     shape.commit()
