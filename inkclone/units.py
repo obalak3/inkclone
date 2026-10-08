@@ -164,8 +164,8 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
     for t, insts in list(L.items()):
         counts = collections.Counter(len(u["pieces"]) for u in insts if u.get("whole")) or collections.Counter(len(u["pieces"]) for u in insts)
         mode = counts.most_common(1)[0][0]
-        if mode >= 2: L[t] = [u for u in insts if mode <= len(u["pieces"]) <= mode + 1]
-        else: L[t] = [u for u in insts if len(u["pieces"]) <= 2]
+        if t.isupper(): L[t] = [u for u in insts if mode <= len(u["pieces"]) <= mode + 1]  # capitals vary (E, H: 2-4 strokes)
+        else: L[t] = [u for u in insts if len(u["pieces"]) == mode]  # lowercase: exactly the writer's usual stroke count
     # curated blocklist (keyed by source: notebook, page, word, char index) survives rebuilds
     pre_block = {t: list(v) for t, v in L.items()}  # single-stroke halves of X live here before the blocklist removes them
     bl_path = "data/curation/blocklist.json"

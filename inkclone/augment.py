@@ -87,17 +87,13 @@ def compose_j(i_inst, g_inst, rng):
     # stem bottom = the lowest point; orient the stem top-to-bottom
     if stem[0, 1] > stem[-1, 1]: stem = stem[::-1]
     bottom = stem[-1, :2].copy()
-    g = max(g_inst["pieces"], key=len)
-    below = g[g[:, 1] > 0.15]                                   # the g's descender part
-    if len(below) < 6:                                          # parametric hook fallback
-        ang = np.linspace(np.pi / 2, np.pi * 1.45, 14); r = 0.42
-        hook = np.column_stack([bottom[0] - r + r * np.cos(ang) * -1, bottom[1] + 0.35 + r * np.sin(ang) - r, np.full(14, stem[:, 2].mean())])
-    else:
-        # take the descender from its topmost point downward, keep its shape, scale to ~0.9 xh deep
-        start = int(np.argmin(below[:, 1])); seg = below[start:].copy() if start < len(below) - 6 else below.copy()
-        depth = max(seg[:, 1].max() - seg[:, 1].min(), 1e-6); f = rng.uniform(0.8, 1.0) / depth
-        seg[:, :2] = (seg[:, :2] - seg[0, :2]) * f + bottom
-        seg[:, 2] = stem[:, 2].mean(); hook = seg
+    # descender hook: continue the stem ~0.8 xh below the baseline, then curve left and up a little
+    depth = rng.uniform(0.7, 0.95); r = rng.uniform(0.3, 0.42)
+    down = np.linspace(0, 1, 8)[1:, None]; seg1 = bottom + down * np.array([rng.uniform(-0.06, 0.02), depth - r])
+    ang = np.linspace(0, np.pi * rng.uniform(0.75, 0.95), 12)[1:]
+    cx, cy = seg1[-1, 0] - r, seg1[-1, 1]
+    seg2 = np.column_stack([cx + r * np.cos(ang), cy + r * np.sin(ang)])
+    hook = np.column_stack([np.vstack([seg1, seg2]), np.full(len(seg1) + len(seg2), stem[:, 2].mean())])
     new_stem = np.vstack([stem, hook[1:]])
     pieces[main_i] = new_stem
     x0 = min(p[:, 0].min() for p in pieces)

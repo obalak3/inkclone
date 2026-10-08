@@ -15,6 +15,12 @@ if __name__ == "__main__":
         st = max(u["pieces"], key=len); gap = np.hypot(*(st[0, :2] - st[-1, :2])); h = st[:, 1].max() - st[:, 1].min()
         return gap < 0.45 * h
     if "0" in out: out["0"] = [u for u in out["0"] if closed(u)] or out["0"]
+    import json, os
+    if os.path.exists("data/curation/blocklist.json"):
+        block = {tuple(k) for k in json.load(open("data/curation/blocklist.json"))}
+        for c in list(out):
+            out[c] = [u for u in out[c] if tuple(u["src"]) + (None,) not in block]
+            if not out[c]: del out[c]
     for bad in ("4", "5", "6"):  # sheet instances for these are mislabeled or too few; better a gap than a wrong digit
         out.pop(bad, None)
     from inkclone.augment import augment_bank

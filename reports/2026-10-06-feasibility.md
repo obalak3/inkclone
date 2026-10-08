@@ -132,3 +132,8 @@ Open question: target documents are math or prose? Math needs its own layout + s
 - Causes: whole words had no variants and were reused; "pp" chunk from "Suppose" was not a pp. Fixes: word variants (1,211 -> 4,538), worst-letter filter on words, no same-instance reuse within a page, chunks disabled entirely (assembly = curated letters only), word-level blocklist (the one bad "after").
 - Joins disabled: the join step swapped in mid-stroke-cut letters that bypass curation (extra stroke in "after", an "x" on "rounds"). Assembly = curated letters + variants only.
 - Word-level blocklist entries for the two HW5 words whose OCR boxes swallowed neighbours ("after", "rounds×"); worst-letter rule for words tightened to 1.1x the cut (word bank 1,390 -> 929 real instances, 318 distinct, plus variants).
+
+## Full visual curation pass (2026-10-08)
+- Writer's direction: fewer rules, go through every glyph and make sure each is itself. Done over four real-instance grids (lower/upper/digits/symbols): 115 blocklist entries total (keys survive rebuilds). Symbol instances now have unique keys (sheet token + occurrence).
+- Mechanical corrections folded in: lowercase stroke count exact, capitals mode..mode+1; fallbacks (hyphen from '=', slash from '1', ')' from '(') count REAL instances only, so variants can no longer switch them off ("Noochange" cause); j rebuilt with a parametric hook (the g-tail version was flat).
+- Notes block of set05 section 1 now spells every word correctly with varying repeats.

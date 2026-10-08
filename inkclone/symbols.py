@@ -112,15 +112,17 @@ def harvest(page, source_lines, templates, prior):
             else:
                 seg = recut_word(tls, tok, pri, templates, baseline, xh, max_b=max(40, 6 * len(tok)))
                 if seg is None: continue
+            occ = {}
             for ch in seg:
                 c = ch["char"]
                 if c.isalpha(): continue
+                occ[c] = occ.get(c, 0) + 1
                 pieces = [tls[i][i0:i1].copy() for i, i0, i1 in ch["pieces"]]
                 px = min(p_[:, 0].min() for p_ in pieces)
                 norm = [np.column_stack([(p_[:, 0] - px) / xh, (p_[:, 1] - baseline) / xh, p_[:, 2]]) for p_ in pieces]
                 allq = np.vstack([p_[:, :2] for p_ in norm])
                 out[c].append({"text": c, "pieces": norm, "width": allq[:, 0].max(), "height": allq[:, 1].max() - allq[:, 1].min(),
-                               "src": ("capitals_sheet", src, tok), "single": len(tok) == 1,
+                               "src": ("capitals_sheet", src, tok, occ[c]), "single": len(tok) == 1,
                                "joined_prev": ch["joined_prev"], "joined_next": ch["joined_next"]})
     return dict(out), frames
 

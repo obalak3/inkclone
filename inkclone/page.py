@@ -42,6 +42,9 @@ class Page:
         for p in pieces: p[:, 0] = u["width"] - p[:, 0]
         return dict(u, pieces=pieces)
 
+    def n_real(self, c):
+        return sum(1 for u in self.sym.get(c, []) if not u.get("synthetic"))
+
     def symbol(self, c):
         if c == ">" and not self.sym.get(">") and self.sym.get("<"): return self.mirror(self.rng.choice(self.sym["<"]))
         if c in ":;" and len(self.sym.get(".", [])) >= 3:
@@ -50,19 +53,19 @@ class Page:
             for p in pt: p[:, 1] -= 0.75   # upper dot at mid x-height
             w = max(max(p[:, 0].max() for p in pt), max(p[:, 0].max() for p in pb))
             return {"text": c, "pieces": pt + pb, "width": float(w), "height": 1.0, "slant": top.get("slant"), "pen": top.get("pen")}
-        if c == "/" and len(self.sym.get("/", [])) < 5 and len(self.sym.get("1", [])) >= 5:
+        if c == "/" and self.n_real("/") < 3 and len(self.sym.get("1", [])) >= 5:
             one = self.rng.choice(self.sym["1"][:40]); st = max(one["pieces"], key=len).copy()
             st[:, 1] -= st[:, 1].mean(); st[:, 1] *= 1.9 / max(st[:, 1].max() - st[:, 1].min(), 1e-6)  # ~1.9 xh tall
             st[:, 0] = st[:, 0] - st[:, 0].mean() - st[:, 1] * 0.45  # lean it: top to the right
             st[:, 1] += -0.75; st[:, 0] -= st[:, 0].min()
             return {"text": "/", "pieces": [st], "width": float(st[:, 0].max()), "height": 1.9, "slant": one.get("slant"), "pen": one.get("pen")}
-        if c == "-" and len(self.sym.get("-", [])) < 5 and len(self.sym.get("=", [])) >= 5:
+        if c == "-" and self.n_real("-") < 3 and len(self.sym.get("=", [])) >= 5:
             eq = self.rng.choice(self.sym["="][:40]); bar = max(eq["pieces"], key=len).copy()
             bar[:, 1] -= bar[:, 1].mean() - (-0.45)  # a hyphen sits a little under mid x-height
             bar[:, 0] -= bar[:, 0].min()
             return {"text": "-", "pieces": [bar], "width": float(bar[:, 0].max()), "height": float(bar[:, 1].max() - bar[:, 1].min()), "slant": eq.get("slant"), "pen": eq.get("pen")}
         if c == ")" and len(self.sym.get("(", [])) >= 5: return self.mirror(self.rng.choice(self.sym["("][:30]))
-        if c == "]" and len(self.sym.get("]", [])) < 5 and len(self.sym.get("[", [])) >= 5: return self.mirror(self.rng.choice(self.sym["["][:20]))
+        if c == "]" and self.n_real("]") < 3 and len(self.sym.get("[", [])) >= 5: return self.mirror(self.rng.choice(self.sym["["][:20]))
         if c == "0" and not self.sym.get("0") and self.s.L.get("o"): return self.s.pick_by_quality([u for u in self.s.L["o"] if u.get("whole")] or self.s.L["o"])
         if c in self.PUNCT_FROM_PROSE and self.s.L.get(c):
             return self.s.pick_by_quality(self.s.L[c])
