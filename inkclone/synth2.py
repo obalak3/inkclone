@@ -17,6 +17,7 @@ class Synth2:
             a = self.out_of.setdefault(p_[0], [0, 0]); a[0] += jr[p_] * n; a[1] += n
             b = self.into.setdefault(p_[1], [0, 0]); b[0] += jr[p_] * n; b[1] += n
         self.join_enabled = False  # joined-variant letters are cut mid-stroke and bypass curation; off until cuts are trustworthy
+        self.use_whole_words = False  # everything is assembled letter by letter from the curated bank; no word-level pasting
 
     def join_prob(self, a, b):
         pc, jr = self.stats["pair_count"], self.stats["join_rate"]
@@ -58,7 +59,7 @@ class Synth2:
         pieces = [p.copy() for p in pieces]
         t = u.get("text", "")
         ext = [self.letter_ext[c] for c in t if c in self.letter_ext]
-        if ext and (t.isalpha() or t.isdigit()):
+        if ext and (t.isalpha() or t.isdigit() or t in "()[]{}|"):
             exp_top, exp_bot = min(e[0] for e in ext), max(e[1] for e in ext)
             top = min(p[:, 1].min() for p in pieces); bot = max(p[:, 1].max() for p in pieces)
             if bot - top > 1e-3:
@@ -86,7 +87,7 @@ class Synth2:
 
     def word(self, text, used):
         src = "word"
-        cands = self.W.get(text)
+        cands = None if not self.use_whole_words else self.W.get(text)
         if not cands and text.islower():  # lowercase token: only lowercase instances (never a capitalised one)
             cands = [u for u in self.lower.get(text.lower(), []) if u["text"].islower()] or None
         if cands:
