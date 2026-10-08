@@ -245,30 +245,26 @@ class Page:
 
 
 def write_vector_page(page, strokes, color=(0.12, 0.11, 0.11)):
-    """Each stroke becomes one filled ribbon outline (the way GoodNotes exports ink), so the
-    PDF is real vector ink with the per-sample pen width preserved."""
+    """Each stroke is drawn as stroked polylines with round caps and joins (the PDF renderer does
+    the geometry, so no self-intersecting outlines). The pen width varies along the stroke, so a
+    stroke is split into short runs of near-constant width; runs overlap by one point."""
     import pymupdf
     shape = page.new_shape()
     for s in strokes:
         if len(s) < 2:
             continue
-        P = s[:, :2]; w = np.maximum(s[:, 2], 0.15) / 2
-        d = np.gradient(P, axis=0); nrm = np.hypot(d[:, 0], d[:, 1]); nrm[nrm < 1e-9] = 1
-        n = np.column_stack([-d[:, 1], d[:, 0]]) / nrm[:, None]
-        left = P + n * w[:, None]; right = P - n * w[:, None]
-        poly = np.vstack([left, right[::-1]])
-        # tiny round-ish caps: a few points around each end
-        shape.draw_polyline([pymupdf.Point(float(x), float(y)) for x, y in poly])
-        shape.finish(color=None, fill=color, closePath=True)
-        for k in (0, len(P) - 1):
-            shape.draw_circle(pymupdf.Point(float(P[k, 0]), float(P[k, 1])), float(w[k])); shape.finish(color=None, fill=color)
+        P = s[:, :2].copy(); w = np.maximum(s[:, 2], 0.15)
+        if len(P) >= 5:  # light smoothing of centerline jitter from the extractor (3-sample mean, ends kept)
+            Q = P.copy(); Q[1:-1] = (P[:-2] + P[1:-1] + P[2:]) / 3; P = Q
+        # runs of near-constant width
+        start = 0
+        for i in range(1, len(P) + 1):
+            if i == len(P) or abs(w[i] - w[start]) > 0.12 * w[start] or i - start >= 40:
+                seg = P[start:i + 1] if i < len(P) else P[start:i]
+                if len(seg) >= 2:
+                    shape.draw_polyline([pymupdf.Point(float(x), float(y)) for x, y in seg])
+                    shape.finish(width=float(np.median(w[start:i])), color=color, lineCap=1, lineJoin=1)
+                elif len(seg) == 1:
+                    shape.draw_circle(pymupdf.Point(float(seg[0, 0]), float(seg[0, 1])), float(w[start]) / 2); shape.finish(color=None, fill=color)
+                start = i
     shape.commit()
-
-
-if __name__ == "__main__":
-    import sys
-    from .source_doc import parse
-    src, out = sys.argv[1], sys.argv[2]; seed = int(sys.argv[3]) if len(sys.argv) > 3 else 1
-    pg = Page(seed=seed); lines = parse(src); pages = pg.layout(lines)
-    n = pg.render(pages, out)
-    print(f"{n} page(s) -> {out}.pdf; missing glyphs: {dict(pg.missing.most_common(12))}")
