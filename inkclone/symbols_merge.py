@@ -21,6 +21,10 @@ if __name__ == "__main__":
         for c in list(out):
             out[c] = [u for u in out[c] if tuple(u["src"]) + (None,) not in block]
             if not out[c]: del out[c]
+    # parentheses and brackets are tall and narrow; a wide '(' reads as a C
+    for c in "()[]":
+        if c in out:
+            out[c] = [u for u in out[c] if u["width"] / max(u["height"], 1e-6) <= 0.42] or out[c]
     for bad in ("4", "5", "6"):  # sheet instances for these are mislabeled or too few; better a gap than a wrong digit
         out.pop(bad, None)
     from inkclone.augment import augment_bank

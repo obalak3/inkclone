@@ -198,12 +198,26 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
     from .augment import augment_bank
     import random as _random
     # letters with no usable real seed are composed from the writer's own parts (j = i + g's descender)
-    from .augment import compose_j, compose_x
+    from .augment import compose_j, compose_x, compose_H, compose_D
     rj = _random.Random(3)
-    if len(L.get("X", [])) < 3:
-        halves = [u for u in pre_block.get("X", []) if len(u["pieces"]) == 1]
-        xs = [x for x in (compose_x(halves, rj) for _ in range(12)) if x]
-        if xs: L["X"] = xs
+    for xc in "Xx":
+        halves = [u for u in pre_block.get(xc, []) if len(u["pieces"]) == 1]
+        if len([u for u in L.get(xc, []) if len(u["pieces"]) >= 2]) < 3 and len(halves) >= 2:
+            xs = [x for x in (compose_x(halves, rj) for _ in range(12)) if x]
+            if xs:
+                for x in xs:
+                    x["text"] = xc
+                    if xc == "x":  # lowercase: squash to x-height
+                        for p_ in x["pieces"]: p_[:, 1] *= 0.5; p_[:, :2] *= 1.0
+                        x["height"] = float(np.ptp(np.concatenate([p_[:, 1] for p_ in x["pieces"]])))
+                L[xc] = xs
+    l_pool = [u for u in L.get("l", []) if u.get("whole") and len(u["pieces"]) == 1 and not u.get("synthetic")]
+    eq_pool = [u for u in L.get("t", []) if not u.get("synthetic")]  # the t's crossbar donor list is replaced below if '=' is available
+    try:
+        import pickle as _pk; _S = _pk.load(open("data/derived/symbols.pkl", "rb")); eq_pool = [u for u in _S.get("=", []) if len(u["pieces"]) == 2] or eq_pool; paren_pool = [u for u in _S.get("(", []) if len(u["pieces"]) == 1]
+    except Exception: paren_pool = []
+    if len(L.get("H", [])) < 3 and l_pool and eq_pool: L["H"] = [compose_H(l_pool, eq_pool, rj) for _ in range(10)]
+    if len(L.get("D", [])) < 3 and l_pool and paren_pool: L["D"] = [compose_D(l_pool, paren_pool, rj) for _ in range(10)]
     if len(L.get("j", [])) < 3:
         i_pool = [u for u in L.get("i", []) if u.get("whole") and len(u["pieces"]) == 2 and not u.get("synthetic")]
         g_pool = [u for u in L.get("g", []) if not u.get("synthetic")] + [u for u in L.get("y", []) if not u.get("synthetic")]
