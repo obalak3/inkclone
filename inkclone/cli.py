@@ -17,7 +17,7 @@ def run(mod, *args):
 def build():
     os.makedirs("data/derived", exist_ok=True)
     run("scripts.run_all") if os.path.exists("scripts/__init__.py") else subprocess.run([sys.executable, "scripts/run_all.py"], check=True)
-    gaps = lambda: subprocess.run([sys.executable, "-c", "import sys; sys.path.insert(0,'.'); from inkclone.synth import measure_word_gaps; measure_word_gaps()"], check=True)
+    gaps = lambda: subprocess.run([sys.executable, "-c", "import sys; sys.path.insert(0,'.'); from inkclone.bank import measure_word_gaps; measure_word_gaps()"], check=True)
     # pass 1: width-prior cuts -> first letter bank (gives recut its templates)
     run("inkclone.segment"); run("inkclone.bank"); gaps(); run("inkclone.units")
     # pass 2: template-guided re-cut -> final banks

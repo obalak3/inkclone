@@ -99,6 +99,25 @@ def build(words, segs):
     return dict(bank), stats
 
 
+def measure_word_gaps(derived_glob="data/derived/*.json", bank_path="data/derived/bank.pkl"):
+    """Gap between consecutive OCR word boxes on a line, in x-heights; stored into the bank stats."""
+    import glob, json
+    d = pickle.load(open(bank_path, "rb")); xh = d["stats"]["xheight_pt_median"]; gaps = []
+    for f in glob.glob(derived_glob):
+        if f.endswith(".words.json"): continue
+        for pg in json.load(open(f)):
+            ws = sorted(pg["words"], key=lambda w: (round(w["bbox"][1] / 6), w["bbox"][0]))
+            for a, b in zip(ws, ws[1:]):
+                ay0, ay1 = a["bbox"][1], a["bbox"][3]; by0, by1 = b["bbox"][1], b["bbox"][3]; h = min(ay1 - ay0, by1 - by0)
+                if min(ay1, by1) - max(ay0, by0) > 0.5 * h and a["text"].isalpha() and b["text"].isalpha():
+                    g = b["bbox"][0] - a["bbox"][2]
+                    if 0 < g < 2.5 * h: gaps.append(g)
+    gaps = np.array(gaps)
+    d["stats"]["word_gap_xh_median"] = float(np.median(gaps) / xh); d["stats"]["word_gap_xh_iqr"] = [float(np.percentile(gaps, 25) / xh), float(np.percentile(gaps, 75) / xh)]
+    pickle.dump(d, open(bank_path, "wb"))
+    return d["stats"]["word_gap_xh_median"], d["stats"]["word_gap_xh_iqr"], len(gaps)
+
+
 if __name__ == "__main__":
     d = pickle.load(open("data/derived/segments.pkl", "rb"))
     words = load_words(sorted({w["source"] for w in d["words"]}))
