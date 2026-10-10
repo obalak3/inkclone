@@ -29,11 +29,16 @@ if __name__ == "__main__":
         if c in out:
             out[c] = [u for u in out[c] if u["width"] / max(u["height"], 1e-6) <= 0.42] or out[c]
     # digits: only the hand-picked sheet seeds (data/curation/digit_seeds.json) plus harvested instances
-    # digits: symbols.py already reduced the sheet to the judged seeds; harvested instances must be tall enough
+    # digits: the judged sheet seeds plus the notebook instances labeled by OCR boxes (digits_ocr.py),
+    # each digit cut at the index judged on reports/digits_ocr_grid.png (data/curation/digit_ocr_keep.json)
+    ocr = pickle.load(open("data/derived/digits_ocr.pkl", "rb")) if os.path.exists("data/derived/digits_ocr.pkl") else {}
+    keep = json.load(open("data/curation/digit_ocr_keep.json")) if os.path.exists("data/curation/digit_ocr_keep.json") else {}
     for c in "0123456789":
-        if c in out:
-            out[c] = [u for u in out[c] if not u.get("harvested") or u["height"] >= 1.1]
-            if not out[c]: del out[c]
+        seeds_c = [u for u in sheet.get(c, [])]
+        k = keep.get(c, {"max": 0, "drop": []}); drop = set(k["drop"])
+        notebook = [u for i, u in enumerate(ocr.get(c, [])[:k["max"]], 1) if i not in drop]
+        out[c] = notebook + seeds_c
+        if not out[c]: del out[c]
     from inkclone.augment import augment_bank
     import random
     out.pop(")", None)  # always mirrored from the writer's clean '(' at render time
