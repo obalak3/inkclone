@@ -122,7 +122,7 @@ def harvest(page, source_lines, templates, prior):
                 norm = [np.column_stack([(p_[:, 0] - px) / xh, (p_[:, 1] - baseline) / xh, p_[:, 2]]) for p_ in pieces]
                 allq = np.vstack([p_[:, :2] for p_ in norm])
                 out[c].append({"text": c, "pieces": norm, "width": allq[:, 0].max(), "height": allq[:, 1].max() - allq[:, 1].min(),
-                               "src": ("capitals_sheet", src, tok, occ[c]), "single": len(tok) == 1,
+                               "src": ("capitals_sheet", src, tok, c + str(occ[c])), "single": len(tok) == 1,
                                "joined_prev": ch["joined_prev"], "joined_next": ch["joined_next"]})
     return dict(out), frames
 

@@ -270,7 +270,7 @@ if __name__ == "__main__":
     caps = [letter_ext[c] for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if c in letter_ext]
     if caps:
         cap_ext = (float(np.median([e[0] for e in caps])), float(np.median([e[1] for e in caps])))
-        for dgt in "0123456789": letter_ext.setdefault(dgt, cap_ext)  # digits sit at capital height
+        for dgt in "0123456789": letter_ext[dgt] = (-1.9, 0.1)  # digits: a little under capital height, same for all ten
         for cap in "ABCDEFGHIJKLMNOPQRSTUVWXYZ": letter_ext.setdefault(cap, cap_ext)  # rare capitals get the typical capital extent
         for br in "()[]{}|": letter_ext[br] = (cap_ext[0], cap_ext[1] + 0.35)  # brackets span capital height and dip below the baseline
     pickle.dump({"words": W, "chunks": C, "letters": L, "letter_h": letter_h, "letter_ext": letter_ext}, open("data/derived/units.pkl", "wb"))

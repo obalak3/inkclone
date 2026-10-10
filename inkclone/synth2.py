@@ -58,13 +58,19 @@ class Synth2:
         class height, shear to the line's slant, and scale pen width to the document's pen."""
         pieces = [p.copy() for p in pieces]
         t = u.get("text", "")
+        if u.get("pen") is None:   # harvested symbols carry no pen/slant record: measure them
+            u = dict(u, pen=float(np.median(np.concatenate([p[:, 2] for p in pieces]))))
+        if u.get("slant") is None:
+            from .bank import slant_deg
+            u = dict(u, slant=slant_deg(np.vstack([p[:, :2] for p in pieces])))
         ext = [self.letter_ext[c] for c in t if c in self.letter_ext]
         if ext and (t.isalpha() or t.isdigit() or t in "()[]{}|"):
             exp_top, exp_bot = min(e[0] for e in ext), max(e[1] for e in ext)
             top = min(p[:, 1].min() for p in pieces); bot = max(p[:, 1].max() for p in pieces)
             if bot - top > 1e-3:
                 power = 0.75 if len(t) <= 3 else 0.5  # pull chunks hard, whole words gently
-                f = ((exp_bot - exp_top) / (bot - top)) ** power; f = min(1.4, max(0.7, f))
+                f = ((exp_bot - exp_top) / (bot - top)) ** power
+                f = min(2.2, max(0.45, f)) if t.isdigit() else min(1.4, max(0.7, f))  # digit seeds come from rough symbol-line frames
                 for p in pieces: p[:, :2] *= f
                 u = dict(u, width=u["width"] * f)
         if self.slant_target is not None and u.get("slant") is not None:
@@ -75,7 +81,7 @@ class Synth2:
             for p in pieces: p[:, 0] -= x0
             u = dict(u, width=max(p[:, 0].max() for p in pieces))
         if self.pen_target is not None and u.get("pen"):
-            f = min(2.0, max(0.5, self.pen_target / u["pen"]))
+            f = min(3.0, max(0.3, self.pen_target / u["pen"]))
             for p in pieces: p[:, 2] *= f
         return pieces, u["width"]
 

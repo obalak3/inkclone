@@ -50,6 +50,8 @@ if __name__ == "__main__":
     if not any(u["height"] > 1.0 for u in out.get("Σ", [])):
         pen = float(np.median([u.get("pen") or np.median(np.concatenate([p[:, 2] for p in u["pieces"]])) for u in out.get("=", [])[:20]]) or 0.65)
         out["Σ"] = [compose_sigma(pen, random.Random(21 + k)) for k in range(12)]
+    digits = {c: out.pop(c) for c in list(out) if c.isdigit()}
     out = augment_bank(out, random.Random(11), per_instance=10, target_min=30, cap=150, strength=0.6, bend=False)
+    out.update(augment_bank(digits, random.Random(12), per_instance=14, target_min=30, cap=150, strength=1.0, bend=True))  # digits vary like letters
     pickle.dump(out, open("data/derived/symbols_final.pkl", "wb"))
     print("final symbol bank:", {c: len(v) for c, v in sorted(out.items()) if v})
