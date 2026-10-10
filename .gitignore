@@ -1,9 +1,10 @@
 .venv/
 __pycache__/
 *.pyc
-data/
+data/*
 *.png
 *.pdf
 !reports/*.png
 .DS_Store
 out/
+!data/curation/
