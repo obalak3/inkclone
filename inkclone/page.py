@@ -26,7 +26,7 @@ class Page:
         self.drift = self.s.stats.get("drift", {"pitch_ratio_sd": 0.12, "baseline_slope_sd": 0.01, "baseline_slope_median": 0.0, "margin_sd_pt": 2.0})
 
     def pitch(self):
-        return max(0.92, min(1.18, self.rng.gauss(1.0, 0.25 * self.drift["pitch_ratio_sd"])))  # measured sd includes paragraph gaps; keep it gentle
+        return max(1.0, min(1.18, self.rng.gauss(1.03, 0.25 * self.drift["pitch_ratio_sd"])))  # never tighter than nominal: tall brackets and capitals need the room
 
     def margin_jitter(self):
         return self.rng.gauss(0, 0.35 * self.drift["margin_sd_pt"])  # measured sd includes indentation noise; use a third
@@ -160,7 +160,7 @@ class Page:
         out, x = [], x0; toks = text.split(); wg = self.s.stats.get("word_gap_xh_median", 2.0)
         self.s.slant_target = max(-12.0, min(2.0, self.doc_slant + self.rng.gauss(0, 1.8)))  # one slant per line, drifting around the document's
         xh = xh * self.rng.uniform(0.95, 1.05)  # size mood per line
-        slope = max(-0.012, min(0.012, self.rng.gauss(self.drift["baseline_slope_median"], 0.5 * self.drift["baseline_slope_sd"])))  # baseline wander, capped at ~5pt per line
+        slope = max(-0.005, min(0.005, self.rng.gauss(self.drift["baseline_slope_median"], 0.3 * self.drift["baseline_slope_sd"])))  # baseline wander, capped at ~2pt per line
         for n, tok in enumerate(toks):
             st, w = self.token(tok, used); jit = self.rng.uniform(0.95, 1.05)
             if max_w and n > 0 and x + w * xh * jit > x0 + max_w: return out, toks[n:]

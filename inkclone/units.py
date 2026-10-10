@@ -269,10 +269,11 @@ if __name__ == "__main__":
     print("implausible units dropped:", drop)
     caps = [letter_ext[c] for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZ" if c in letter_ext]
     if caps:
-        cap_ext = (float(np.median([e[0] for e in caps])), float(np.median([e[1] for e in caps])))
+        cap_ext = (max(-2.2, float(np.median([e[0] for e in caps]))), float(np.median([e[1] for e in caps])))  # body-text capitals are ~2.2 xh, the sheet's are larger
         for dgt in "0123456789": letter_ext[dgt] = (-1.9, 0.1)  # digits: a little under capital height, same for all ten
-        for cap in "ABCDEFGHIJKLMNOPQRSTUVWXYZ": letter_ext.setdefault(cap, cap_ext)  # rare capitals get the typical capital extent
-        for br in "()[]{}|": letter_ext[br] = (cap_ext[0], cap_ext[1] + 0.35)  # brackets span capital height and dip below the baseline
+        for cap in "ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+            e = letter_ext.get(cap, cap_ext); letter_ext[cap] = (max(-2.3, e[0]), min(0.3, e[1]))
+        for br in "()[]{}|": letter_ext[br] = (-2.1, 0.3)  # brackets: capital height, slight dip below the baseline
     pickle.dump({"words": W, "chunks": C, "letters": L, "letter_h": letter_h, "letter_ext": letter_ext}, open("data/derived/units.pkl", "wb"))
     print("letter extents (top,bottom in xh):", {c: (round(a, 2), round(b, 2)) for c, (a, b) in sorted(letter_ext.items()) if c in "aeghlpt"})
     print(f"words: {sum(map(len, W.values()))} instances / {len(W)} distinct | chunks: {sum(map(len, C.values()))} / {len(C)} | letters kept: {sum(map(len, L.values()))}")

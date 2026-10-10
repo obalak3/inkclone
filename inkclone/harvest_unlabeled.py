@@ -35,7 +35,7 @@ def seeds_from_banks(sym, letters, n_strokes):
     """-> dict class -> list of (feature, pieces_norm) for seeds with exactly n_strokes main strokes."""
     S = collections.defaultdict(list)
     import json, os
-    dseeds = {c: {tuple(k) for k in v} for c, v in json.load(open("data/curation/digit_seeds.json")).items()} if os.path.exists("data/curation/digit_seeds.json") else {}
+    dseeds = {c: {tuple(k[:4]) for k in v} for c, v in json.load(open("data/curation/digit_seeds.json")).items()} if os.path.exists("data/curation/digit_seeds.json") else {}
     for c, insts in sym.items():
         for u in insts:
             if c.isdigit() and dseeds and tuple(u["src"]) not in dseeds.get(c, set()): continue

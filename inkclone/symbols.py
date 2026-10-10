@@ -135,5 +135,21 @@ if __name__ == "__main__":
     templates = build_templates(units["letters"])
     S, frames = harvest(pages[1], sym_lines, templates, seg["prior"])
     for f in frames: print(f"  line: {f[0][:44]:44s} tokens matched {f[3]}/{f[4]}")
+    # digits: keep only the hand-judged seeds (data/curation/digit_seeds.json), each cut to the stroke that IS the digit
+    import json, os
+    if os.path.exists("data/curation/digit_seeds.json"):
+        seeds = json.load(open("data/curation/digit_seeds.json"))
+        for c in "0123456789":
+            want = {tuple(k[:4]): k[4] for k in seeds.get(c, [])}
+            kept = []
+            for u in S.get(c, []):
+                key = tuple(u["src"])
+                if key not in want: continue
+                pc = want[key]
+                if pc is not None: u["pieces"] = [u["pieces"][pc]]
+                allq = np.vstack([p[:, :2] for p in u["pieces"]]); x0 = allq[:, 0].min()
+                for p in u["pieces"]: p[:, 0] -= x0
+                u["width"] = float(allq[:, 0].max() - x0); u["height"] = float(np.ptp(allq[:, 1])); u["single"] = True; kept.append(u)
+            S[c] = kept
     pickle.dump(S, open("data/derived/symbols.pkl", "wb"))
     print("symbol instances:", {k: len(v) for k, v in sorted(S.items())})

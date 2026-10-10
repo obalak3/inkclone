@@ -29,18 +29,10 @@ if __name__ == "__main__":
         if c in out:
             out[c] = [u for u in out[c] if u["width"] / max(u["height"], 1e-6) <= 0.42] or out[c]
     # digits: only the hand-picked sheet seeds (data/curation/digit_seeds.json) plus harvested instances
-    seeds = {c: {tuple(k) for k in v} for c, v in json.load(open("data/curation/digit_seeds.json")).items()}
+    # digits: symbols.py already reduced the sheet to the judged seeds; harvested instances must be tall enough
     for c in "0123456789":
         if c in out:
-            out[c] = [u for u in out[c] if u.get("harvested") or tuple(u["src"]) in seeds.get(c, set())]
-            for u in out[c]:  # digits are one stroke (4 and 5 up to two); anything extra is a stray fragment
-                keep_n = 2 if c in "45" else 1
-                if len(u["pieces"]) > keep_n:
-                    u["pieces"] = sorted(u["pieces"], key=len, reverse=True)[:keep_n]
-                    allq = np.vstack([p[:, :2] for p in u["pieces"]]); x0 = allq[:, 0].min()
-                    for p in u["pieces"]: p[:, 0] -= x0
-                    u["width"] = float(allq[:, 0].max() - x0); u["height"] = float(np.ptp(allq[:, 1]))
-            out[c] = [u for u in out[c] if u["height"] >= 1.1 or tuple(u["src"]) in seeds.get(c, set())]  # hand-picked seeds are trusted
+            out[c] = [u for u in out[c] if not u.get("harvested") or u["height"] >= 1.1]
             if not out[c]: del out[c]
     from inkclone.augment import augment_bank
     import random
