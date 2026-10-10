@@ -144,3 +144,8 @@ Writer reported shaky lines, random dots, scalloped strokes ("es" of Inequalitie
 2. Vector export built filled offset outlines, which self-intersect when samples are denser than the pen width (spikes, holes). Fixed: stroked polylines, round caps/joins, one width per stroke.
 3. PyMuPDF `finish()` defaults to closePath=True: every stroke got a chord from end back to start (short strokes: "random dots"; long strokes: filled blobs). Fixed with closePath=False. This also made the day's "after" renders misleading, together with a lost `__main__` block that left `cli render` silently writing nothing for ~4 hours.
 Verified on the same "es" at 900 dpi and on the section 1 header next to the real HW5 header.
+
+## set06 (dynamic programming) render, 2026-10-10
+Writer: "pages of math and no 4/5/6?" Correct. The sheet had every digit; a day-one rule (`pop 4/5/6`) plus a "single-token only" filter hid them and I reported the gap instead of looking. Fixed from the data: hand-picked digit seeds (`data/curation/digit_seeds.json`), stray-fragment trim, comma height filter (tall "commas" were 3s).
+Parser: bare "(b)" labels no longer become headers; a "(b)" heading a group of "(a)..(e)" stays on its own line; operator limits (min/max/Σ, above and below) attach as sub/superscripts; a Σ straddling a line is folded into it; CMEX big delimiters dropped; display equations detected even when they contain min/max; Σ composed as a stroke (the sheet's Σ cut was flat).
+Regression caught: a height filter meant for digits had landed in the all-symbols loop and wiped = , . - (page rendered "=" as 5). Removed.

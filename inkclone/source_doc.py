@@ -62,13 +62,57 @@ def parse(path):
             else:
                 groups.append({"y": sp["origin"][1], "size": sp["size"], "spans": [sp]})
         merged = []
+        body_sz = sorted(sp["size"] for sp in spans)[len(spans) // 2] if spans else 10
+        def attach_limits(prev, g):
+            sps = g["spans"]
+            if not prev or not all(sp["size"] < 0.8 * body_sz for sp in sps): return False
+            ops = [sp for sp in prev["spans"] if sp["text"].strip().split("^")[0].split("_")[0] in ("min", "max", "Σ")]
+            x0, x1 = min(sp["bbox"][0] for sp in sps), max(sp["bbox"][2] for sp in sps)
+            for op in ops:
+                if op["bbox"][2] > x0 - 25 and op["bbox"][0] < x1 + 25 and 0 < g["y"] - prev["y"] < 2.2 * body_sz:
+                    lim = "".join(sp["text"] for sp in sorted(sps, key=lambda sp: sp["bbox"][0])).replace(" ", "").replace("ℓ", "l")
+                    op["text"] = op["text"].strip() + "_{" + lim + "}"; return True
+            return False
+        def attach_upper(g, nxt):
+            """a small group sitting just ABOVE a Σ/max/min in the next group -> superscript limit"""
+            sps = g["spans"]
+            if not all(sp["size"] < 0.8 * body_sz for sp in sps): return False
+            x0, x1 = min(sp["bbox"][0] for sp in sps), max(sp["bbox"][2] for sp in sps)
+            for op in nxt["spans"]:
+                if op["text"].strip().split("_")[0] in ("Σ", "min", "max") and op["bbox"][2] > x0 - 25 and op["bbox"][0] < x1 + 25 and 0 < nxt["y"] - g["y"] < 2.2 * body_sz:
+                    lim = "".join(sp["text"] for sp in sorted(sps, key=lambda sp: sp["bbox"][0])).replace(" ", "").replace("ℓ", "l")
+                    op["text"] = op["text"].strip() + "^{" + lim + "}"; return True
+            return False
+        import os
+        if os.environ.get("INK_DEBUG"):
+            for g in groups:
+                if 540 < g["y"] < 580: print("GROUP", round(g["y"], 1), [(sp["text"], round(sp["size"], 1)) for sp in g["spans"]])
+        kept = []
+        for i, g in enumerate(groups):
+            if kept and attach_limits(kept[-1], g): continue
+            if i + 1 < len(groups) and attach_upper(g, groups[i + 1]): continue
+            # a big operator (Σ) on its own baseline belongs in the line it straddles: push it into the next group
+            for sp in g["spans"]:
+                if "CMEX" in sp["font"] and sp["text"].strip() in ("X", "P"): sp["text"] = "Σ"
+            sig = [sp for sp in g["spans"] if sp["text"].strip().startswith("Σ")]
+            empty_cmex = lambda sp: "CMEX" in sp["font"] and not any(ord(c) >= 32 and not c.isspace() for c in sp["text"])
+            small = [sp for sp in g["spans"] if sp["size"] < 0.8 * body_sz]
+            if sig and i + 1 < len(groups) and all(sp in sig or sp in small or empty_cmex(sp) for sp in g["spans"]) and 0 < groups[i + 1]["y"] - g["y"] < 1.5 * body_sz:
+                if small and "^{" not in sig[0]["text"]:
+                    sig[0]["text"] = sig[0]["text"].strip() + "^{" + "".join(sp["text"] for sp in sorted(small, key=lambda sp: sp["bbox"][0])).replace(" ", "").replace("ℓ", "l") + "}"
+                groups[i + 1]["spans"].extend(sig); continue
+            kept.append(g)
+        groups = kept
         for g in groups:
             sps = sorted(g["spans"], key=lambda sp: sp["bbox"][0])
             main = max(sps, key=lambda sp: len(sp["text"])); size = main["size"]; base = main["origin"][1]
             txt, prev_x1 = "", None
             for sp in sps:
                 t = sp["text"]
-                if "CMEX" in sp["font"] and t.strip() == "P": t = "Σ"
+                if "CMEX" in sp["font"] and t.strip() in ("P", "X"): t = "Σ"
+                if "CMEX" in sp["font"]: t = "".join(ch for ch in t if ord(ch) >= 32)  # big delimiters / cases braces: drop
+                if "CMMI" in sp["font"] and t.strip() == "" and sp["bbox"][2] - sp["bbox"][0] > 1.0: t = "l"   # ℓ has no unicode mapping in CMMI10
+                t = t.replace("ℓ", "l")
                 if "CMSY" in sp["font"] and t.strip() == "p": t = "√"
                 small = sp["size"] < 0.8 * size
                 if small and sp["origin"][1] > base + 0.12 * size: t = ("_" + t) if len(t.strip()) == 1 else ("_{" + t.strip() + "}")
@@ -91,7 +135,9 @@ def parse(path):
                 lines.append({"kind": "title", "indent": 0, "text": t}); continue
             if pno == 0 and n_headers == 0 and i < 4 and nwords <= 8 and not is_short_bold and len(t) < 60:
                 lines.append({"kind": "meta", "indent": 0, "text": t}); continue
-            if is_short_bold:
+            if re.match(r"^\(?[a-z]\)$", t):  # a bare sub-question label: attach to the next line
+                lines.append({"kind": "prose", "indent": 0, "text": t, "bold_lead": True, "sublabel": True}); continue
+            if is_short_bold and not re.match(r"^\([a-z]\)", t):
                 n_headers += 1; in_code = False
                 lines.append({"kind": "header", "indent": 0, "text": re.sub(r"^(\d+)\s+", r"\1) ", t)}); continue
             if re.match(r"^[A-Z][A-Za-z]+\(.*\)\s*$", t) and r["x"] <= body_x + 2:
@@ -101,7 +147,7 @@ def parse(path):
             in_code = False
             if re.match(r"^\d+$", t): continue  # page number
             # a standalone equation line: no lowercase word of 3+ letters, indented or centred
-            if not re.search(r"[a-z]{3,}", t) and r["x"] > body_x + 20:
+            if not re.search(r"[a-z]{3,}", re.sub(r"(?<![A-Za-z])(min|max|log|lim|argmin|argmax)(?![A-Za-z])", "", t)) and r["x"] > body_x + 20:
                 lines.append({"kind": "math", "indent": 2, "text": t}); continue
             lines.append({"kind": "prose", "indent": 0, "text": t, "bold_lead": r["bold"]})
     return merge_paragraphs(lines)
@@ -113,6 +159,12 @@ def merge_paragraphs(lines):
     out = []; seen_header = False
     for ln in lines:
         if ln["kind"] == "header": seen_header = True
+        starts_sub = ln["kind"] == "prose" and re.match(r"^\([a-z]\)", ln["text"]) is not None
+        if out and out[-1].get("sublabel"):  # "(b)" alone on a line + the following text -> one paragraph,
+            if starts_sub:                     # unless that text is itself sub-labelled: then "(b)" heads a group
+                out[-1] = dict(out[-1], sublabel=False); out.append(dict(ln)); continue
+            out[-1] = dict(out[-1], text=(out[-1]["text"] + " " + ln["text"]).strip(), sublabel=False, kind="prose"); continue
+        if starts_sub: out.append(dict(ln)); continue
         if not seen_header and ln["kind"] == "prose" and len(ln["text"].split()) <= 8: out.append(dict(ln, kind="meta")); continue
         if ln["kind"] == "prose" and out and out[-1]["kind"] == "prose" and not ln.get("bold_lead"):
             out[-1]["text"] = (out[-1]["text"] + " " + ln["text"]).strip()

@@ -115,7 +115,7 @@ def harvest(page, source_lines, templates, prior):
             occ = {}
             for ch in seg:
                 c = ch["char"]
-                if c.isalpha(): continue
+                if c.isalpha() and c.isascii(): continue   # Σ and other non-ASCII letters are symbols
                 occ[c] = occ.get(c, 0) + 1
                 pieces = [tls[i][i0:i1].copy() for i, i0, i1 in ch["pieces"]]
                 px = min(p_[:, 0].min() for p_ in pieces)

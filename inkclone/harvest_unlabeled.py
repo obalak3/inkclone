@@ -34,8 +34,11 @@ def page_scale(strokes):
 def seeds_from_banks(sym, letters, n_strokes):
     """-> dict class -> list of (feature, pieces_norm) for seeds with exactly n_strokes main strokes."""
     S = collections.defaultdict(list)
+    import json, os
+    dseeds = {c: {tuple(k) for k in v} for c, v in json.load(open("data/curation/digit_seeds.json")).items()} if os.path.exists("data/curation/digit_seeds.json") else {}
     for c, insts in sym.items():
         for u in insts:
+            if c.isdigit() and dseeds and tuple(u["src"]) not in dseeds.get(c, set()): continue
             if len(u["pieces"]) == n_strokes:  # cut-out brackets/commas are acceptable seeds; the grid showed them mostly clean
                 xy = [p[:, :2] for p in u["pieces"]]; S[c].append((feat(xy, 1.3), u))  # bank units: xh=1 -> size_ref 1.3 (letter height)
     for c, insts in letters.items():

@@ -134,9 +134,9 @@ class Page:
             if c in "_^": mode = c; i += 1; group = tok[i:i+1] == "{"; i += 1 if group else 0; continue
             if c == "}" and group: mode, group = None, False; i += 1; continue
             scale, dy = (0.65, 0.55) if mode == "_" else (0.65, -1.0) if mode == "^" else (1.0, 0.0)
-            if c.isalpha():
+            if c.isalpha() and c.isascii():
                 j = i
-                while j < len(tok) and tok[j].isalpha(): j += 1
+                while j < len(tok) and tok[j].isalpha() and tok[j].isascii(): j += 1
                 run = tok[i:j]; st, w, _ = self.s.word(run, used); i = j
             else:
                 i += 1

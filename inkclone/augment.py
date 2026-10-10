@@ -159,3 +159,18 @@ def compose_D(l_pool, paren_pool, rng):
     allq = np.vstack([p[:, :2] for p in pieces])
     return {"text": "D", "pieces": pieces, "width": float(allq[:, 0].max()), "height": float(np.ptp(allq[:, 1])), "src": ("composed", "D"),
             "synthetic": True, "whole": True, "score": 0.1, "slant": -4.0, "pen": float(np.median(stem[:, 2])), "joined_prev": False, "joined_next": False}
+
+
+def compose_sigma(pen, rng):
+    """A summation sign as one stroke: top bar, down-left to the middle, down-right, bottom bar.
+    Capital height (about 2 x-heights), drawn with the writer's pen width."""
+    top, bot = rng.uniform(-2.2, -1.9), rng.uniform(0.05, 0.2); w = rng.uniform(1.2, 1.5); mid = (top + bot) / 2 + rng.uniform(-0.1, 0.1)
+    corners = np.array([[w, top + rng.uniform(-0.05, 0.1)], [0.0, top], [w * rng.uniform(0.5, 0.65), mid], [0.0, bot], [w, bot + rng.uniform(-0.1, 0.05)]])
+    pts = []
+    for a, b in zip(corners, corners[1:]):
+        for t in np.linspace(0, 1, 10)[:-1]:
+            q = a + (b - a) * t; q = q + np.array([rng.gauss(0, 0.02), rng.gauss(0, 0.02)]); pts.append(q)
+    pts.append(corners[-1]); P = np.array(pts); P[:, 0] -= P[:, 0].min()
+    piece = np.column_stack([P, np.full(len(P), pen)])
+    return {"text": "Σ", "pieces": [piece], "width": float(P[:, 0].max()), "height": float(np.ptp(P[:, 1])), "src": ("composed", "Σ"),
+            "synthetic": True, "single": True, "slant": -4.0, "pen": pen}
