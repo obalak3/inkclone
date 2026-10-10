@@ -94,7 +94,7 @@ class Synth2:
     def word(self, text, used):
         src = "word"
         cands = None if not self.use_whole_words else self.W.get(text)
-        if not cands and text.islower():  # lowercase token: only lowercase instances (never a capitalised one)
+        if self.use_whole_words and not cands and text.islower():  # lowercase token: only lowercase instances (never a capitalised one)
             cands = [u for u in self.lower.get(text.lower(), []) if u["text"].islower()] or None
         if cands:
             fresh = [c for c in cands if id(c) not in used] or cands  # variants make a fresh one almost always available
