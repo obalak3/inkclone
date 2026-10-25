@@ -217,6 +217,13 @@ def build(words, segs, drop_frac=0.3, min_for_filter=20):
         import pickle as _pk; _S = _pk.load(open("data/derived/symbols.pkl", "rb")); eq_pool = [u for u in _S.get("=", []) if len(u["pieces"]) == 2] or eq_pool; paren_pool = [u for u in _S.get("(", []) if len(u["pieces"]) == 1]
     except Exception: paren_pool = []
     if len(L.get("H", [])) < 3 and l_pool and eq_pool: L["H"] = [compose_H(l_pool, eq_pool, rj) for _ in range(10)]
+    # letters with no clean real instance at all: drawn in the writer's pen from a parametric shape, then varied
+    from .augment import compose_param, variant as _variant
+    pen_ = float(np.median([u["pen"] for v in L.values() for u in v if u.get("pen")] or [0.65]))
+    for c in "xBD":
+        base = [compose_param(c, pen_, _random.Random(300 + k)) for k in range(14)]
+        for u in base: u.update({"whole": True, "score": 0.1, "k": None, "joined_prev": False, "joined_next": False})
+        L[c] = base + [_variant(u, _random.Random(400 + k), 1.0) for k, u in enumerate(base)]
     if len(L.get("D", [])) < 3 and l_pool and paren_pool: L["D"] = [compose_D(l_pool, paren_pool, rj) for _ in range(10)]
     if len(L.get("j", [])) < 3:
         i_pool = [u for u in L.get("i", []) if u.get("whole") and len(u["pieces"]) == 2 and not u.get("synthetic")]

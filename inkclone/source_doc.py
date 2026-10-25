@@ -6,6 +6,7 @@ line looks like Name(args) and whose lines are indented in steps; the rest is pr
 Sub/superscripts are detected by smaller font size + baseline shift and marked
 with _ and ^ (single char or {group}).
 """
+import os
 import re
 import pymupdf
 
@@ -61,8 +62,26 @@ def parse(path):
                 groups[-1]["spans"].append(sp)  # sub/superscript on this line
             else:
                 groups.append({"y": sp["origin"][1], "size": sp["size"], "spans": [sp]})
-        merged = []
         body_sz = sorted(sp["size"] for sp in spans)[len(spans) // 2] if spans else 10
+        real = lambda sp: any(ord(c) >= 32 and not c.isspace() for c in sp["text"]) and not ("CMEX" in sp["font"] and sp["text"].strip() not in ("P", "X"))
+        big = [g for g in groups if any(sp["size"] >= 0.8 * body_sz and real(sp) and len(sp["text"].strip()) >= 2 for sp in g["spans"])
+               or sum(1 for sp in g["spans"] if sp["size"] >= 0.8 * body_sz and real(sp)) >= 3]
+        rest = []
+        for g in groups:
+            if g in big: continue
+            near = [b for b in big if abs(b["y"] - g["y"]) < 1.0 * body_sz]
+            if near:
+                # a subscript sits ~0.3 body sizes below its line, a superscript ~0.4 above: pick the line whose expected offset fits best
+                def err(b):
+                    dy = (g["y"] - b["y"]) / body_sz
+                    return min(abs(dy - 0.3), abs(dy + 0.42))
+                b = min(near, key=err); b["spans"].extend(g["spans"])
+            else: rest.append(g)
+        groups = sorted(big + rest, key=lambda g: g["y"])
+        if os.environ.get("INK_DEBUG2"):
+            for g in groups:
+                if 360 < g["y"] < 400 and pno == 0: print("GROUP", round(g["y"], 1), "big" if g in big else "small", [(sp["text"], round(sp["size"], 1), round(sp["origin"][1], 1)) for sp in sorted(g["spans"], key=lambda sp: sp["bbox"][0])][:14])
+        merged = []
         def attach_limits(prev, g):
             sps = g["spans"]
             if not prev or not all(sp["size"] < 0.8 * body_sz for sp in sps): return False
@@ -83,7 +102,6 @@ def parse(path):
                     lim = "".join(sp["text"] for sp in sorted(sps, key=lambda sp: sp["bbox"][0])).replace(" ", "").replace("ℓ", "l")
                     op["text"] = op["text"].strip() + "^{" + lim + "}"; return True
             return False
-        import os
         if os.environ.get("INK_DEBUG"):
             for g in groups:
                 if 540 < g["y"] < 580: print("GROUP", round(g["y"], 1), [(sp["text"], round(sp["size"], 1)) for sp in g["spans"]])
@@ -105,21 +123,36 @@ def parse(path):
         groups = kept
         for g in groups:
             sps = sorted(g["spans"], key=lambda sp: sp["bbox"][0])
-            main = max(sps, key=lambda sp: len(sp["text"])); size = main["size"]; base = main["origin"][1]
+            bodyish = [sp for sp in sps if sp["size"] >= 0.8 * body_sz] or sps
+            main = max(bodyish, key=lambda sp: len(sp["text"])); size = main["size"]; base = main["origin"][1]
             txt, prev_x1 = "", None
+            run, run_mode = "", None
+            def flush():
+                nonlocal txt, run, run_mode
+                if run:
+                    r = run.replace(" ", "")
+                    txt += (run_mode + r) if len(r) == 1 else (run_mode + "{" + r + "}")
+                run, run_mode = "", None
             for sp in sps:
                 t = sp["text"]
                 if "CMEX" in sp["font"] and t.strip() in ("P", "X"): t = "Σ"
-                if "CMEX" in sp["font"]: t = "".join(ch for ch in t if ord(ch) >= 32)  # big delimiters / cases braces: drop
-                if "CMMI" in sp["font"] and t.strip() == "" and sp["bbox"][2] - sp["bbox"][0] > 1.0: t = "l"   # ℓ has no unicode mapping in CMMI10
+                if "CMEX" in sp["font"]:  # big delimiters: parens kept, braces and the rest dropped
+                    t = "".join({"\x00": "(", "\x10": "(", "\x02": "(", "\x01": ")", "\x11": ")", "\x03": ")"}.get(ch, ch if ord(ch) >= 32 else "") for ch in t)
+                if "CMMI" in sp["font"] and t.strip() == "" and sp["bbox"][2] - sp["bbox"][0] > 1.0: t = "l"
                 t = t.replace("ℓ", "l")
                 if "CMSY" in sp["font"] and t.strip() == "p": t = "√"
                 small = sp["size"] < 0.8 * size
-                if small and sp["origin"][1] > base + 0.12 * size: t = ("_" + t) if len(t.strip()) == 1 else ("_{" + t.strip() + "}")
-                elif small and sp["origin"][1] < base - 0.12 * size: t = ("^" + t) if len(t.strip()) == 1 else ("^{" + t.strip() + "}")
-                if prev_x1 is not None and sp["bbox"][0] - prev_x1 > 0.18 * size and not t.startswith(("_", "^")): txt += " "
+                mode = "_" if (small and sp["origin"][1] > base + 0.12 * size) else "^" if (small and sp["origin"][1] < base - 0.12 * size) else None
+                if mode:
+                    if run_mode and mode != run_mode: flush()
+                    run_mode = mode; run += t.strip(); prev_x1 = sp["bbox"][2]; continue
+                flush()
+                if prev_x1 is not None and sp["bbox"][0] - prev_x1 > 0.18 * size: txt += " "
                 txt += t; prev_x1 = sp["bbox"][2]
-            txt = txt.replace("̸=", "≠").replace("=⇒", "⇒").replace("⇐⇒", "⇔").replace("· · ·", "...").replace(". . .", "...").replace("−", "-")
+            flush()
+            txt = txt.replace("̸=", "≠").replace("=⇒", "⇒").replace("⇐⇒", "⇔").replace("⇐=", "⇐").replace("· · ·", "...").replace(". . .", "...").replace("−", "-")
+            txt = txt.replace("“", '"').replace("”", '"').replace("’", "'").replace("‘", "'")
+            txt = re.sub(r"\biff(?=[a-z])", "iff ", txt)
             txt = re.sub(r"\|\s*([A-Za-z])\s*\|", lambda m: "|" + m.group(1) + "|", txt)
             bold = "CMBX" in main["font"] or "Bold" in main["font"]
             merged.append({"x": sps[0]["bbox"][0], "y": g["y"], "size": size, "bold": bold, "text": re.sub(r"\s+", " ", txt).strip(), "font": main["font"]})
@@ -145,9 +178,10 @@ def parse(path):
             if in_code and r["x"] > code_x0 + 2:
                 lines.append({"kind": "code", "indent": max(1, round((r["x"] - code_x0) / 18)), "text": t}); continue
             in_code = False
-            if re.match(r"^\d+$", t): continue  # page number
+            if re.match(r"^\d+$", t) or not re.search(r"[^\s()]", t): continue  # page number, or a line that held only big delimiters
             # a standalone equation line: no lowercase word of 3+ letters, indented or centred
             if not re.search(r"[a-z]{3,}", re.sub(r"(?<![A-Za-z])(min|max|log|lim|argmin|argmax)(?![A-Za-z])", "", t)) and r["x"] > body_x + 20:
+                if os.environ.get("INK_DEBUG2"): print("MATH", pno + 1, round(r["y"], 1), repr(t[:40]), "x", round(r["x"]), "size", round(r["size"], 1))
                 lines.append({"kind": "math", "indent": 2, "text": t}); continue
             lines.append({"kind": "prose", "indent": 0, "text": t, "bold_lead": r["bold"]})
     return merge_paragraphs(lines)

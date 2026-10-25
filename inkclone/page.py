@@ -32,9 +32,9 @@ class Page:
         return self.rng.gauss(0, 0.35 * self.drift["margin_sd_pt"])  # measured sd includes indentation noise; use a third
 
     # ---- glyph sources -------------------------------------------------------------
-    PUNCT_FROM_PROSE = set("'?!")  # prose-cut punctuation is dirty; ':' and ';' are composed from the writer's own periods/commas
+    PUNCT_FROM_PROSE = set("?!")  # prose-cut punctuation is dirty; ':' and ';' are composed from the writer's own periods/commas
 
-    COMPOSITE = {"⇒": "=>", "→": "->", "⇔": "<=>", "↔": "<->", "≠": "=/"}
+    COMPOSITE = {"⇒": "=>", "→": "->", "⇔": "<=>", "↔": "<->", "≠": "=/", "⇐": "<="}
 
     def mirror(self, u):
         """horizontal mirror of a glyph instance (for '>' from '<')."""
@@ -134,6 +134,7 @@ class Page:
             if c in "_^": mode = c; i += 1; group = tok[i:i+1] == "{"; i += 1 if group else 0; continue
             if c == "}" and group: mode, group = None, False; i += 1; continue
             scale, dy = (0.65, 0.55) if mode == "_" else (0.65, -1.0) if mode == "^" else (1.0, 0.0)
+            if mode == "^" and c in "⊤′'": scale, dy = (0.85, -0.9)   # a transpose or prime must stay legible
             if c.isalpha() and c.isascii():
                 j = i
                 while j < len(tok) and tok[j].isalpha() and tok[j].isascii(): j += 1
@@ -219,7 +220,8 @@ class Page:
                     x0 = MARGIN_L + 3.2 * xh * ln["indent"] + (0 if ln["indent"] == 0 else 0.6 * xh)
                     st, _ = self.line_strokes(ln["text"], xh, x0, y + 1.8 * xh, used); cur += st; code_strokes += st; y += 3.9 * xh * self.pitch()
                 y_code_end = y
-                if self.two_column and sec["notes"] and code_strokes:
+                notes_chars = sum(len(ln["text"]) for ln in sec["notes"])
+                if self.two_column and sec["notes"] and code_strokes and notes_chars <= 70 * len(sec["code"]):  # side notes only when they fit beside the code
                     code_right = max(p[:, 0].max() for p in code_strokes)
                     nx0 = max(code_right + 2.5 * xh, MARGIN_L + 0.42 * full_w); nw = PAGE_W - MARGIN_R - nx0; nxh = xh * self.note_scale
                     if nw >= 0.30 * full_w:

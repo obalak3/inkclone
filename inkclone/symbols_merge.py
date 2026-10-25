@@ -44,6 +44,11 @@ if __name__ == "__main__":
     out.pop(")", None)  # always mirrored from the writer's clean '(' at render time
     # Σ: the sheet's only instance is a flat cut; build it as a stroke with the writer's pen instead
     from inkclone.augment import compose_sigma
+    from inkclone.augment import compose_param, PARAM
+    pen_ = float(np.median([u.get("pen") or np.median(np.concatenate([p[:, 2] for p in u["pieces"]])) for u in out.get("=", [])[:20]]) or 0.65)
+    for name in PARAM:
+        if name.isalpha() and name.isascii(): continue  # ASCII letters are composed in units.py; Greek stays here
+        if not out.get(name) or name in ("|", "{", "}"): out[name] = [compose_param(name, pen_, random.Random(100 + k)) for k in range(12)]
     if not any(u["height"] > 1.0 for u in out.get("Σ", [])):
         pen = float(np.median([u.get("pen") or np.median(np.concatenate([p[:, 2] for p in u["pieces"]])) for u in out.get("=", [])[:20]]) or 0.65)
         out["Σ"] = [compose_sigma(pen, random.Random(21 + k)) for k in range(12)]
